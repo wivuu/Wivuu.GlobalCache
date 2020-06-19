@@ -1,21 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Wivuu.GlobalCache
 {
     public interface IGlobalCache
     {
-        Task<T> GetOrCreateAsync<T>(string category, int hashcode, Func<GlobalCacheEntrySettings, Task<T>> generator);
+        Task<T> GetOrCreateAsync<T>(CacheIdentity id,
+                                    Func<GlobalCacheEntrySettings, Task<T>> generator,
+                                    CancellationToken cancellationToken = default);
 
-        IAsyncEnumerable<T> GetOrCreateAsync<T>(string category, int hashcode, Func<GlobalCacheEntrySettings, IAsyncEnumerable<T>> generator);
+        IAsyncEnumerable<T> GetOrCreateAsync<T>(CacheIdentity id,
+                                                Func<GlobalCacheEntrySettings, IAsyncEnumerable<T>> generator,
+                                                CancellationToken cancellationToken = default);
 
-        Task InvalidateAsync(string category, int? hashcode = null);
+        Task InvalidateAsync(CacheIdentity id,
+                             CancellationToken cancellationToken = default);
 
-        Task CreateAsync<T>(string category, int hashcode, Func<GlobalCacheEntrySettings, Task<T>> generator);
+        Task CreateAsync<T>(CacheIdentity id,
+                            Func<GlobalCacheEntrySettings, Task<T>> generator,
+                            CancellationToken cancellationToken = default);
 
-        Task CreateAsync<T>(string category, int hashcode, Func<GlobalCacheEntrySettings, IAsyncEnumerable<T>> generator);
+        Task CreateAsync<T>(CacheIdentity id,
+                            Func<GlobalCacheEntrySettings, IAsyncEnumerable<T>> generator,
+                            CancellationToken cancellationToken = default);
 
-        Task<T> GetAsync<T>(string category, int hashcode);
+        Task<T> GetAsync<T>(CacheIdentity id,
+                            CancellationToken cancellationToken = default);
+                            
+        IAsyncEnumerable<T> GetManyAsync<T>(CacheIdentity id,
+                                            CancellationToken cancellationToken = default);
     }
 }

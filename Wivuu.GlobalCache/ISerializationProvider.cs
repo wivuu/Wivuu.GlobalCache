@@ -1,18 +1,24 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Wivuu.GlobalCache
 {
     public interface ISerializationProvider
     {
-        // void Serialize<T>(T input);
-        
-        // Task SerializeAsync<T>(T input);
+        Task SerializeToStreamAsync<T>(T input,
+                                       Stream output,
+                                       CancellationToken cancellationToken = default);
 
-        // T Deserialize<T>();
+        Task SerializeToStreamAsync<T>(IAsyncEnumerable<T> input,
+                                       Stream output,
+                                       CancellationToken cancellationToken = default);
 
-        // IEnumerable<T> DeserializeMany<T>();
+        Task<T> DeserializeFromStreamAsync<T>(Stream input,
+                                              CancellationToken cancellationToken = default);
 
-        // IAsyncEnumerable<T> DeserializeManyAsync<T>();
+        IAsyncEnumerable<T> DeserializeManyFromStreamAsync<T>(Stream input,
+                                                              CancellationToken cancellationToken = default);
     }
 }
