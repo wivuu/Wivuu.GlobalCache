@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wivuu.GlobalCache.Azure\Wivuu.GlobalCache.Azure.csproj" />
+    <ProjectReference Include="..\Wivuu.GlobalCache.FileSystem\Wivuu.GlobalCache.FileSystem.csproj" />
+    <ProjectReference Include="..\Wivuu.GlobalCache.BinarySerializer\Wivuu.GlobalCache.BinarySerializer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.12.1" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
