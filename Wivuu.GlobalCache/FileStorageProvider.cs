@@ -27,7 +27,7 @@ namespace Wivuu.GlobalCache
             throw new NotImplementedException();
         }
 
-        public Task<Stream> WriteAsync<T>(CacheIdentity id, CancellationToken cancellationToken = default)
+        public Stream OpenWrite<T>(CacheIdentity id, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
