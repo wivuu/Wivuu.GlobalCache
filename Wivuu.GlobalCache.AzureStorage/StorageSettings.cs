@@ -4,6 +4,6 @@ namespace Wivuu.GlobalCache.AzureStorage
     {
         public string? ConnectionString { get; set; }
 
-        public string ContainerName { get; set; } = "GlobalCache";
+        public string ContainerName { get; set; } = "globalcache";
     }
 }

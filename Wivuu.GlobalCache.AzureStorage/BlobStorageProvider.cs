@@ -28,7 +28,7 @@ namespace Wivuu.GlobalCache.AzureStorage
         protected BlobContainerClient ContainerClient { get; }
 
         private static string IdToString(CacheIdentity id) =>
-            $"{id.Category}/{id.Hashcode}";
+            $"{id.Category}/{id.Hashcode}.dat";
 
         public async Task<bool> ExistsAsync<T>(CacheIdentity id, CancellationToken cancellationToken = default)
         {
@@ -97,7 +97,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             {
                 var pipe = new Pipe();
 
-                _ = blobClient.UploadAsync(pipe.Reader.AsStream(false));
+                _ = Task.Run(() => blobClient.UploadAsync(pipe.Reader.AsStream(false)));
 
                 return pipe.Writer.AsStream(true);
             }
