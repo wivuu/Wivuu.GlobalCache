@@ -23,10 +23,12 @@ namespace Tests
 
             var cache = scope.ServiceProvider.GetRequiredService<IGlobalCache>();
 
-            var item = await cache.GetOrCreateAsync(new CacheIdentity("Test"), async e =>
+            var item = await cache.GetOrCreateAsync(new CacheIdentity("Test"), e =>
             {
-                return 0;
+                return new ValueTask<int>(0);
             });
+
+            Assert.Equal(0, item);
         }
     }
 }

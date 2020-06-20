@@ -1,0 +1,9 @@
+version: '3.4'
+
+services:
+
+  azurestorage:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports:
+    - 10000:10000
+    - 10001:10001

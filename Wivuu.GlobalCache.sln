@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wivuu.GlobalCache", "Wivuu.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{9C5BB584-E315-4207-AAC9-674488A51E0E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wivuu.GlobalCache.Azure", "Wivuu.GlobalCache.Azure\Wivuu.GlobalCache.Azure.csproj", "{2B817F33-5AF0-4D67-9297-0CF7E11C9E70}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wivuu.GlobalCache.AzureStorage", "Wivuu.GlobalCache.AzureStorage\Wivuu.GlobalCache.AzureStorage.csproj", "{2B817F33-5AF0-4D67-9297-0CF7E11C9E70}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wivuu.GlobalCache.FileSystem", "Wivuu.GlobalCache.FileSystem\Wivuu.GlobalCache.FileSystem.csproj", "{212C9044-AAAE-43AE-99BF-79B33155CC7C}"
 EndProject

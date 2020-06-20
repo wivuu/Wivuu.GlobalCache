@@ -7,6 +7,10 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <Target Name="StartDocker" BeforeTargets="Run;Build" Condition=" '$(Configuration)' == 'DEBUG' ">
+    <Exec Command="docker-compose -p globalcache up -d" ConsoleToMsBuild="true" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.5" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="3.1.5" />
@@ -23,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Wivuu.GlobalCache.Azure\Wivuu.GlobalCache.Azure.csproj" />
+    <ProjectReference Include="..\Wivuu.GlobalCache.AzureStorage\Wivuu.GlobalCache.AzureStorage.csproj" />
     <ProjectReference Include="..\Wivuu.GlobalCache.FileSystem\Wivuu.GlobalCache.FileSystem.csproj" />
     <ProjectReference Include="..\Wivuu.GlobalCache.BinarySerializer\Wivuu.GlobalCache.BinarySerializer.csproj" />
   </ItemGroup>
