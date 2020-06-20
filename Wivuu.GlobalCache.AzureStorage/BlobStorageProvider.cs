@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.IO.Pipelines;
-using System.Reactive.Disposables;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
