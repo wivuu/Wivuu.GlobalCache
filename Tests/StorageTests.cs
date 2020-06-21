@@ -32,9 +32,9 @@ namespace Tests
 
             // Read file
             await using (var stream = azStore.OpenRead(id))
-            using (var sr = new StreamReader(stream))
             {
-                var data = await sr.ReadToEndAsync();
+                using var sr = new StreamReader(stream);
+                var data     = await sr.ReadToEndAsync();
 
                 Assert.Equal(str, data);
             }

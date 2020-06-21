@@ -65,7 +65,7 @@ namespace Wivuu.GlobalCache.AzureStorage
                     }
                 });
 
-                return pipe.Reader.AsStream(false);
+                return pipe.Reader.AsStream();
             }
 
             return Stream.Null;
@@ -111,25 +111,20 @@ namespace Wivuu.GlobalCache.AzureStorage
             return AsyncDisposable.CompletedTask;
         }
 
-        public sealed class ReadWriteStream : Stream
+        internal sealed class ReadWriteStream : Stream
         {
             public override bool CanRead => Reader.CanRead;
-
             public override bool CanSeek => Reader.CanSeek;
-
             public override bool CanWrite => Writer.CanWrite;
-
+            public override bool CanTimeout => Reader.CanTimeout;
             public override long Length => Reader.Length;
-
             public override long Position { get => Reader.Position; set => Reader.Position = value; }
+            public override int ReadTimeout { get => Reader.ReadTimeout; set => Reader.ReadTimeout = value; }
+            public override int WriteTimeout { get => Reader.WriteTimeout; set => Reader.WriteTimeout = value; }
+
             public Pipe Pipe { get; }
             public Stream Reader { get; }
             public Stream Writer { get; }
-
-            public override bool CanTimeout => Reader.CanTimeout;
-
-            public override int ReadTimeout { get => Reader.ReadTimeout; set => Reader.ReadTimeout = value; }
-            public override int WriteTimeout { get => Reader.WriteTimeout; set => Reader.WriteTimeout = value; }
             public Task ReaderTask { get; }
 
             internal ReadWriteStream(Func<Stream, Task> ReaderTask)
