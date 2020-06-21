@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Wivuu.GlobalCache;
@@ -18,14 +19,25 @@ namespace Tests
                 ConnectionString = "UseDevelopmentStorage=true"
             });
 
+            var id  = new CacheIdentity("Test");
+            var str = "hello world" + Guid.NewGuid();
+
             // Write file
-            using (var stream = azStore.OpenWrite<string>(new CacheIdentity("Test")))
-            using (var sr     = new StreamWriter(stream))
+            await using (var stream = azStore.OpenWrite(id))
             {
-                await sr.WriteAsync("This is a test!");
+                var data = Encoding.Default.GetBytes(str);
+
+                await stream.WriteAsync(data);
             }
 
-            // 
+            // Read file
+            await using (var stream = azStore.OpenRead(id))
+            using (var sr = new StreamReader(stream))
+            {
+                var data = await sr.ReadToEndAsync();
+
+                Assert.Equal(str, data);
+            }
         }
     }
 }

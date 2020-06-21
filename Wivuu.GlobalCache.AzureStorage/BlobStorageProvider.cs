@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.IO.Pipelines;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
@@ -35,13 +36,13 @@ namespace Wivuu.GlobalCache.AzureStorage
             var path = IdToString(id);
 
             if (ContainerClient.GetBlobClient(path) is BlobClient blobClient &&
-                await blobClient.ExistsAsync(cancellationToken) is Azure.Response<bool> result)
+                await blobClient.ExistsAsync(cancellationToken).ConfigureAwait(false) is Azure.Response<bool> result)
                 return result.Value;
 
             return false;
         }
 
-        public Task<Stream?> OpenReadAsync<T>(CacheIdentity id, CancellationToken cancellationToken = default)
+        public Stream OpenRead(CacheIdentity id, CancellationToken cancellationToken = default)
         {
             var path = IdToString(id);
 
@@ -51,16 +52,37 @@ namespace Wivuu.GlobalCache.AzureStorage
                 
                 _ = Task.Run(async () => 
                 {
-                    using var writerStream = pipe.Writer.AsStream(true);
+                    try
+                    {
+                        using var writerStream = pipe.Writer.AsStream(true);
 
-                    await blobClient.DownloadToAsync(writerStream);
-                    await pipe.Writer.CompleteAsync();
+                        await blobClient.DownloadToAsync(writerStream).ConfigureAwait(false);
+                        await pipe.Writer.CompleteAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception error)
+                    {
+                        await pipe.Writer.CompleteAsync(error).ConfigureAwait(false);
+                    }
                 });
 
-                return Task.FromResult<Stream?>(pipe.Reader.AsStream(false));
+                return pipe.Reader.AsStream(false);
             }
 
-            return Task.FromResult(default(Stream));
+            return Stream.Null;
+        }
+
+        public Stream OpenWrite(CacheIdentity id, CancellationToken cancellationToken = default)
+        {
+            var path = IdToString(id);
+
+            if (ContainerClient.GetBlobClient(path) is BlobClient blobClient)
+            {
+                return new ReadWriteStream(stream => 
+                    blobClient.UploadAsync(stream, overwrite: true, cancellationToken)
+                );
+            }
+
+            throw new Exception("Failed to open write stream");
         }
 
         public Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
@@ -81,7 +103,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             {
                 var lease = new BlobLeaseClient(blobClient);
 
-                await lease.AcquireAsync(LeaseTimeout, cancellationToken: cancellationToken);
+                await lease.AcquireAsync(LeaseTimeout, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 return new AsyncDisposable(() => lease.ReleaseAsync());
             }
@@ -89,20 +111,108 @@ namespace Wivuu.GlobalCache.AzureStorage
             return AsyncDisposable.CompletedTask;
         }
 
-        public Stream OpenWrite<T>(CacheIdentity id, CancellationToken cancellationToken = default)
+        public sealed class ReadWriteStream : Stream
         {
-            var path = IdToString(id);
+            public override bool CanRead => Reader.CanRead;
 
-            if (ContainerClient.GetBlobClient(path) is BlobClient blobClient)
+            public override bool CanSeek => Reader.CanSeek;
+
+            public override bool CanWrite => Writer.CanWrite;
+
+            public override long Length => Reader.Length;
+
+            public override long Position { get => Reader.Position; set => Reader.Position = value; }
+            public Pipe Pipe { get; }
+            public Stream Reader { get; }
+            public Stream Writer { get; }
+
+            public override bool CanTimeout => Reader.CanTimeout;
+
+            public override int ReadTimeout { get => Reader.ReadTimeout; set => Reader.ReadTimeout = value; }
+            public override int WriteTimeout { get => Reader.WriteTimeout; set => Reader.WriteTimeout = value; }
+            public Task ReaderTask { get; }
+
+            internal ReadWriteStream(Func<Stream, Task> ReaderTask)
             {
-                var pipe = new Pipe();
-
-                _ = Task.Run(() => blobClient.UploadAsync(pipe.Reader.AsStream(false)));
-
-                return pipe.Writer.AsStream(true);
+                this.Pipe       = new Pipe();
+                this.Reader     = Pipe.Reader.AsStream();
+                this.Writer     = Pipe.Writer.AsStream();
+                this.ReaderTask = Task.Run(() => ReaderTask(Reader));
             }
 
-            throw new Exception("Failed to open write stream");
+            public override void Flush() => Writer.Flush();
+
+            public override int Read(byte[] buffer, int offset, int count) => Reader.Read(buffer, offset, count);
+
+            public override long Seek(long offset, SeekOrigin origin) => Reader.Seek(offset, origin);
+
+            public override void SetLength(long value) => Writer.SetLength(value);
+
+            public override void Write(byte[] buffer, int offset, int count) => Writer.Write(buffer, offset, count);
+
+            public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state) =>
+                Reader.BeginRead(buffer, offset, count, callback, state);
+
+            public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state) =>
+                Writer.BeginWrite(buffer, offset, count, callback, state);
+
+            public override void Close()
+            {
+                Writer.Close();
+                Reader.Close();
+            }
+
+            public override void CopyTo(Stream destination, int bufferSize) =>
+                Reader.CopyTo(destination, bufferSize);
+
+            public override Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken) =>
+                Reader.CopyToAsync(destination, bufferSize, cancellationToken);
+
+            protected override void Dispose(bool disposing)
+            {
+                DisposeAsync().AsTask().Wait();
+            }
+
+            public override async ValueTask DisposeAsync()
+            {
+                await Pipe.Writer.CompleteAsync().ConfigureAwait(false);
+                await ReaderTask.ConfigureAwait(false);
+                await Pipe.Reader.CompleteAsync().ConfigureAwait(false);
+                
+                await base.DisposeAsync().ConfigureAwait(false);
+            }
+
+            public override int EndRead(IAsyncResult asyncResult) => 
+                Reader.EndRead(asyncResult);
+
+            public override void EndWrite(IAsyncResult asyncResult) =>
+                Writer.EndWrite(asyncResult);
+
+            public override Task FlushAsync(CancellationToken cancellationToken) =>
+                Writer.FlushAsync(cancellationToken);
+
+            public override int Read(Span<byte> buffer) =>
+                Reader.Read(buffer);
+
+            public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+                Reader.ReadAsync(buffer, offset, count, cancellationToken);
+
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+                Reader.ReadAsync(buffer, cancellationToken);
+
+            public override int ReadByte() =>
+                Reader.ReadByte();
+
+            public override void Write(ReadOnlySpan<byte> buffer) => Writer.Write(buffer);
+
+            public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => 
+                Writer.WriteAsync(buffer, offset, count, cancellationToken);
+
+            public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => 
+                Writer.WriteAsync(buffer, cancellationToken);
+
+            public override void WriteByte(byte value) => 
+                Writer.WriteByte(value);
         }
 
         private struct AsyncDisposable : IAsyncDisposable
