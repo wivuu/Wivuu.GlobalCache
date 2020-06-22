@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -30,19 +32,65 @@ namespace Wivuu.GlobalCache.AzureStorage
         private static string IdToString(CacheIdentity id) =>
             $"{id.Category}/{id.Hashcode}.dat";
 
-        public async Task<bool> ExistsAsync<T>(CacheIdentity id, CancellationToken cancellationToken = default)
+        public async Task<CacheStatus> ExistsAsync(CacheIdentity id, CancellationToken cancellationToken = default)
         {
-            var path = IdToString(id);
+            var path       = IdToString(id);
+            var blobClient = ContainerClient.GetBlobClient(path);
 
-            if (ContainerClient.GetBlobClient(path) is BlobClient blobClient &&
-                await blobClient.ExistsAsync(cancellationToken).ConfigureAwait(false) is Azure.Response<bool> result)
-                // TODO: Return if blob is locked
-                return result.Value;
+            try
+            {
+                var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-            return false;
+                // Check if blob is locked
+                return properties.Value.LeaseState == LeaseState.Leased 
+                    ? CacheStatus.Locked 
+                    : CacheStatus.Exists;
+            }
+            catch (RequestFailedException e)
+            {
+                if (e.Status == 404)
+                    return CacheStatus.NotExists;
+                else
+                    throw;
+            }
         }
 
-        public Stream OpenRead(CacheIdentity id, CancellationToken cancellationToken = default)
+        public async Task<bool> WaitForLock(CacheIdentity id, string? etag = default, CancellationToken cancellationToken = default)
+        {
+            var path       = IdToString(id);
+            var blobClient = ContainerClient.GetBlobClient(path);
+
+            try
+            {
+                using var retries = new RetryHelper(2, maxDelay: 100, totalMaxDelay: LeaseTimeout);
+
+                do
+                {
+                    var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                    // Check if blob is locked & not partial
+                    if (properties.Value.Metadata.TryGetValue("partial", out _) == false && 
+                        properties.Value.LeaseState != LeaseState.Leased)
+                        break;
+
+                    if (!await retries.DelayAsync())
+                        // Out of retries
+                        throw new Exception("Lock past ");
+                }
+                while (!cancellationToken.IsCancellationRequested);
+
+                return true;
+            }
+            catch (RequestFailedException e)
+            {
+                if (e.Status == 404)
+                    return false;
+
+                throw;
+            }
+        }
+
+        public Stream OpenReadAsync(CacheIdentity id, CancellationToken cancellationToken = default)
         {
             var path = IdToString(id);
 
@@ -71,36 +119,43 @@ namespace Wivuu.GlobalCache.AzureStorage
             return Stream.Null;
         }
 
-        public Stream OpenWrite(CacheIdentity id, CancellationToken cancellationToken = default)
+        public async Task<Stream> OpenWriteAsync(CacheIdentity id, CancellationToken cancellationToken = default)
+        {
+            var path       = IdToString(id);
+            var blobClient = ContainerClient.GetBlobClient(path);
+            var lease      = await LeaseAndTruncateAsync(id, blobClient, cancellationToken);
+
+            return new OpenWriteStream(async stream =>
+            {
+                await using (lease)
+                {
+                    await blobClient.UploadAsync(stream, 
+                        conditions: new BlobRequestConditions { LeaseId = lease.Id }, 
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
+            });
+        }
+
+        public async Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
         {
             var path       = IdToString(id);
             var blobClient = ContainerClient.GetBlobClient(path);
 
-            return new OpenWriteStream(async stream =>
-            {
-                await using var lease = await LeaseAndTruncateAsync(id, blobClient, cancellationToken);
-
-                await blobClient.UploadAsync(stream, 
-                    conditions: new BlobRequestConditions { LeaseId = lease.Id }, 
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-            });
-        }
-
-        public Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
-        {
-            var path = IdToString(id);
-
-            if (ContainerClient.GetBlobClient(path) is BlobClient blobClient)
-                return blobClient.DeleteIfExistsAsync();
-
-            return Task.CompletedTask;
+            await blobClient.DeleteIfExistsAsync();
         }
 
         private async Task<BlobLock> LeaseAndTruncateAsync(CacheIdentity id, BlobClient blobClient, CancellationToken cancellationToken = default)
         {
             var lease = new BlobLeaseClient(blobClient);
 
-            await blobClient.UploadAsync(Stream.Null, overwrite: false, cancellationToken).ConfigureAwait(false);
+            await blobClient.UploadAsync(
+                Stream.Null,
+                metadata: new Dictionary<string, string>
+                {
+                    ["partial"] = "1"
+                }, 
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+
             await lease.AcquireAsync(LeaseTimeout, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             return new BlobLock(lease.LeaseId, () => lease.ReleaseAsync());
@@ -115,5 +170,12 @@ namespace Wivuu.GlobalCache.AzureStorage
 
             public string Id { get; }
         }
+    }
+
+    public enum CacheStatus
+    {
+        NotExists,
+        Locked,
+        Exists,
     }
 }
