@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Wivuu.GlobalCache.AzureStorage
 {
-    internal sealed class ReadWriteStream : Stream
+    internal sealed class OpenWriteStream : Stream
     {
         public override bool CanRead => Reader.CanRead;
         public override bool CanSeek => Reader.CanSeek;
@@ -22,7 +22,7 @@ namespace Wivuu.GlobalCache.AzureStorage
         public Stream Writer { get; }
         public Task ReaderTask { get; }
 
-        internal ReadWriteStream(Func<Stream, Task> ReaderTask)
+        internal OpenWriteStream(Func<Stream, Task> ReaderTask)
         {
             this.Pipe       = new Pipe();
             this.Reader     = Pipe.Reader.AsStream();
@@ -67,7 +67,6 @@ namespace Wivuu.GlobalCache.AzureStorage
         {
             await Pipe.Writer.CompleteAsync().ConfigureAwait(false);
             await ReaderTask.ConfigureAwait(false);
-            await Pipe.Reader.CompleteAsync().ConfigureAwait(false);
             
             await base.DisposeAsync().ConfigureAwait(false);
         }

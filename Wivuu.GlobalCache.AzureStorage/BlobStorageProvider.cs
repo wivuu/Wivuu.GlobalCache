@@ -55,7 +55,6 @@ namespace Wivuu.GlobalCache.AzureStorage
                         using var writerStream = pipe.Writer.AsStream();
 
                         await blobClient.DownloadToAsync(writerStream, cancellationToken).ConfigureAwait(false);
-                        await pipe.Writer.CompleteAsync().ConfigureAwait(false);
                     }
                     catch (Exception error)
                     {
@@ -74,7 +73,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             var path = IdToString(id);
 
             if (ContainerClient.GetBlobClient(path) is BlobClient blobClient)
-                return new ReadWriteStream(stream => 
+                return new OpenWriteStream(stream => 
                     blobClient.UploadAsync(stream, overwrite: true, cancellationToken)
                 );
 
