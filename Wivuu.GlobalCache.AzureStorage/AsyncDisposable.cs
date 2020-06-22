@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace Wivuu.GlobalCache.AzureStorage
 {
-    internal struct AsyncDisposable : IAsyncDisposable
+    internal class AsyncDisposable : IAsyncDisposable
     {
         public AsyncDisposable(Func<Task> done)
         {

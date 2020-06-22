@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
 
 namespace Wivuu.GlobalCache.AzureStorage
@@ -17,9 +18,9 @@ namespace Wivuu.GlobalCache.AzureStorage
                 throw new ArgumentNullException($"{nameof(BlobStorageProvider)} requires a connection string");
 
             this.Settings = settings;
-            
+
             var blobServiceClient = new BlobServiceClient(settings.ConnectionString);
-            
+
             this.ContainerClient = blobServiceClient.GetBlobContainerClient(settings.ContainerName);
         }
 
@@ -35,6 +36,7 @@ namespace Wivuu.GlobalCache.AzureStorage
 
             if (ContainerClient.GetBlobClient(path) is BlobClient blobClient &&
                 await blobClient.ExistsAsync(cancellationToken).ConfigureAwait(false) is Azure.Response<bool> result)
+                // TODO: Return if blob is locked
                 return result.Value;
 
             return false;
@@ -47,8 +49,8 @@ namespace Wivuu.GlobalCache.AzureStorage
             if (ContainerClient.GetBlobClient(path) is BlobClient blobClient)
             {
                 var pipe = new System.IO.Pipelines.Pipe();
-                
-                _ = Task.Run(async () => 
+
+                _ = Task.Run(async () =>
                 {
                     try
                     {
@@ -71,14 +73,17 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         public Stream OpenWrite(CacheIdentity id, CancellationToken cancellationToken = default)
         {
-            var path = IdToString(id);
+            var path       = IdToString(id);
+            var blobClient = ContainerClient.GetBlobClient(path);
 
-            if (ContainerClient.GetBlobClient(path) is BlobClient blobClient)
-                return new OpenWriteStream(stream => 
-                    blobClient.UploadAsync(stream, overwrite: true, cancellationToken)
-                );
+            return new OpenWriteStream(async stream =>
+            {
+                await using var lease = await LeaseAndTruncateAsync(id, blobClient, cancellationToken);
 
-            throw new Exception("Failed to open write stream");
+                await blobClient.UploadAsync(stream, 
+                    conditions: new BlobRequestConditions { LeaseId = lease.Id }, 
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+            });
         }
 
         public Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
@@ -91,20 +96,24 @@ namespace Wivuu.GlobalCache.AzureStorage
             return Task.CompletedTask;
         }
 
-        public async Task<IAsyncDisposable> TryAcquireLockAsync(CacheIdentity id, CancellationToken cancellationToken = default)
+        private async Task<BlobLock> LeaseAndTruncateAsync(CacheIdentity id, BlobClient blobClient, CancellationToken cancellationToken = default)
         {
-            var path = IdToString(id);
+            var lease = new BlobLeaseClient(blobClient);
 
-            if (ContainerClient.GetBlobClient(path) is BlobClient blobClient)
+            await blobClient.UploadAsync(Stream.Null, overwrite: false, cancellationToken).ConfigureAwait(false);
+            await lease.AcquireAsync(LeaseTimeout, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            return new BlobLock(lease.LeaseId, () => lease.ReleaseAsync());
+        }
+
+        private class BlobLock : AsyncDisposable
+        {
+            public BlobLock(string leaseId, Func<Task> done) : base(done)
             {
-                var lease = new BlobLeaseClient(blobClient);
-
-                await lease.AcquireAsync(LeaseTimeout, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-                return new AsyncDisposable(() => lease.ReleaseAsync());
+                Id = leaseId;
             }
 
-            return AsyncDisposable.CompletedTask;
+            public string Id { get; }
         }
     }
 }
