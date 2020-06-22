@@ -37,13 +37,13 @@ namespace Wivuu.GlobalCache.AzureStorage
             properties.LeaseState == LeaseState.Leased ||
             properties.Metadata.TryGetValue("partial", out _);
 
-        internal static async Task<ETag?> GetUnlockedETag(BlobClient client, CancellationToken cancellationToken = default)
+        internal static async Task<ETag?> GetUnlockedETag(BlobBaseClient client, CancellationToken cancellationToken = default)
         {
             try
             {
                 var properties = await client.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-                if (IsPendingOrLocked(properties.Value))
+                if (!IsPendingOrLocked(properties.Value))
                     return properties.Value.ETag;
             }
             catch (RequestFailedException e)
@@ -83,12 +83,15 @@ namespace Wivuu.GlobalCache.AzureStorage
         {
             var path   = IdToString(id);
             var handle = new ReaderWriter(ContainerClient.GetBlockBlobClient(path));
+            using var retries = new RetryHelper(1, 20, totalMaxDelay: TimeSpan.FromSeconds(10));
 
             while (!cancellationToken.IsCancellationRequested &&
                    !await handle.TryOpenRead() &&
                    !await handle.TryOpenWrite())
-                // await Task.Yield();
-                await Task.Delay(1);
+            {
+                if (await retries.DelayAsync() == false)
+                    throw new Exception("Unable to open reader");
+            }
 
             return handle;
         }
@@ -117,40 +120,17 @@ namespace Wivuu.GlobalCache.AzureStorage
         public PipeWriter? Writer => IsReader ? null : Pipe.Writer;
         public PipeReader? Reader => IsReader ? Pipe.Reader : null;
 
-        private static bool IsPendingOrLocked(BlobProperties properties) =>
-            properties.LeaseState != LeaseState.Available ||
-            properties.Metadata.TryGetValue("partial", out _);
-
-        private async Task<ETag?> GetUnlockedETag(CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                var properties = await Client.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-
-                if (!IsPendingOrLocked(properties.Value))
-                    return properties.Value.ETag;
-            }
-            catch (RequestFailedException e)
-            {
-                if (e.Status == 404)
-                    return ETag.All;
-
-                throw;
-            }
-
-            return default;
-        }
-
         internal async Task<bool> TryOpenRead(CancellationToken cancellationToken = default)
         {
-            if (await GetUnlockedETag() is ETag etag && etag != ETag.All)
+            if (await BlobStorageProvider2.GetUnlockedETag(Client) is ETag etag && etag != ETag.All)
             {
                 IsReader = true;
                 using var writerStream = Pipe.Writer.AsStream(true);
 
                 _ = Task.Run(async () =>
                 {
-                    int tries = 0;
+                    using var retryhelper = new RetryHelper(1, 50, totalMaxDelay: TimeSpan.FromSeconds(10));
+
                     while (!cancellationToken.IsCancellationRequested)
                     {
                         try
@@ -164,15 +144,14 @@ namespace Wivuu.GlobalCache.AzureStorage
                         }
                         catch (Exception error)
                         {
-                            if (tries > 5)
+                            if (!await retryhelper.DelayAsync())
                             {
                                 Pipe.Writer.Complete(error);
                                 break;
                             }
                             else
                             {
-                                await Task.Yield();
-                                if (await GetUnlockedETag() is ETag newEtag && newEtag != ETag.All)
+                                if (await BlobStorageProvider2.GetUnlockedETag(Client) is ETag newEtag && newEtag != ETag.All)
                                     etag = newEtag;
                             }
                         }

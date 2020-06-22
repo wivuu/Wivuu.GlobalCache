@@ -143,7 +143,7 @@ namespace Tests
         }
         
         [Fact]
-        public async Task TestGetOrCreateBloc2()
+        public async Task TestGetOrCreateBlob2()
         {
             var azStore = new BlobStorageProvider2(new StorageSettings
             {
@@ -153,6 +153,7 @@ namespace Tests
             var id     = new CacheIdentity("Test", 2);
             var str    = "hello world" + Guid.NewGuid();
             var writes = 0;
+            var rand   = new Random();
 
             await azStore.RemoveAsync(id);
 
@@ -162,17 +163,22 @@ namespace Tests
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
             });
 
             var otherTasks = new List<Task>();
 
             // Simulate bad things
-            var rand = new Random();
-            for (var i = 0; i < 1000; ++i)
+            for (var i = 0; i < 500; ++i)
             {
-                otherTasks.Add(Task.Run(async () => Assert.Equal(str, await GetOrCreateAsync())));
+                otherTasks.Add(
+                    GetOrCreateAsync().ContinueWith(task =>
+                        Assert.Equal(str, task.Result)
+                    ));
 
-                if (i % rand.Next(1,5) == 0)
+                if (i % rand.Next(1, 5) == 0)
                     otherTasks.Add(azStore.RemoveAsync(id));
             }
 
@@ -186,7 +192,7 @@ namespace Tests
                     if (handle.Writer is PipeWriter writer)
                     {
                         // !!!!Expensive data generation here!!!!
-                        // await Task.Delay(10);
+                        await Task.Delay(rand!.Next(1,10));
                         await writer.WriteAsync(Encoding.Default.GetBytes(str!));
                         Interlocked.Increment(ref writes);
                         writer.Complete();
