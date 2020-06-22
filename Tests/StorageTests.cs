@@ -30,8 +30,10 @@ namespace Tests
                 await stream.WriteAsync(data);
             }
 
+            await Task.Delay(100);
+
             // Read file
-            await using (var stream = azStore.OpenRead(id))
+            using (var stream = azStore.OpenRead(id))
             {
                 using var sr = new StreamReader(stream);
                 var data     = await sr.ReadToEndAsync();

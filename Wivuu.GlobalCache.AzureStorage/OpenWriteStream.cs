@@ -25,8 +25,8 @@ namespace Wivuu.GlobalCache.AzureStorage
         internal OpenWriteStream(Func<Stream, Task> ReaderTask)
         {
             this.Pipe       = new Pipe();
-            this.Reader     = Pipe.Reader.AsStream();
-            this.Writer     = Pipe.Writer.AsStream();
+            this.Reader     = Pipe.Reader.AsStream(true);
+            this.Writer     = Pipe.Writer.AsStream(true);
             this.ReaderTask = Task.Run(() => ReaderTask(Reader));
         }
 
@@ -60,13 +60,18 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         protected override void Dispose(bool disposing)
         {
-            DisposeAsync().AsTask().Wait();
+            Pipe.Writer.Complete();
+            ReaderTask.Wait();
+            Pipe.Reader.Complete();
+
+            base.Dispose(disposing);
         }
 
         public override async ValueTask DisposeAsync()
         {
-            await Pipe.Writer.CompleteAsync().ConfigureAwait(false);
+            Pipe.Writer.Complete();
             await ReaderTask.ConfigureAwait(false);
+            Pipe.Reader.Complete();
             
             await base.DisposeAsync().ConfigureAwait(false);
         }

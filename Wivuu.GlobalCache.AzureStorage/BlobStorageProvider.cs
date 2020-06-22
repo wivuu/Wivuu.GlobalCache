@@ -52,13 +52,14 @@ namespace Wivuu.GlobalCache.AzureStorage
                 {
                     try
                     {
-                        using var writerStream = pipe.Writer.AsStream();
+                        using var writerStream = pipe.Writer.AsStream(true);
 
                         await blobClient.DownloadToAsync(writerStream, cancellationToken).ConfigureAwait(false);
+                        pipe.Writer.Complete();
                     }
                     catch (Exception error)
                     {
-                        await pipe.Writer.CompleteAsync(error).ConfigureAwait(false);
+                        pipe.Writer.Complete(error);
                     }
                 });
 
