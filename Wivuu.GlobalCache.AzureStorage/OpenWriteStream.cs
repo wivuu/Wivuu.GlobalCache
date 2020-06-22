@@ -48,8 +48,11 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         public override void Close()
         {
-            Writer.Close();
-            Reader.Close();
+            Pipe.Writer.Complete();
+            ReaderTask.Wait();
+            Pipe.Reader.Complete();
+
+            base.Close();
         }
 
         public override void CopyTo(Stream destination, int bufferSize) =>
@@ -57,15 +60,6 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         public override Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken) =>
             Reader.CopyToAsync(destination, bufferSize, cancellationToken);
-
-        protected override void Dispose(bool disposing)
-        {
-            Pipe.Writer.Complete();
-            ReaderTask.Wait();
-            Pipe.Reader.Complete();
-
-            base.Dispose(disposing);
-        }
 
         public override async ValueTask DisposeAsync()
         {
