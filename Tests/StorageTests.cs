@@ -23,7 +23,7 @@ namespace Tests
             var str = "hello world" + Guid.NewGuid();
 
             // Write file
-            await using (var stream = azStore.OpenWrite(id))
+            using (var stream = azStore.OpenWrite(id))
             {
                 var data = Encoding.Default.GetBytes(str);
 

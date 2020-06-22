@@ -24,10 +24,15 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         internal OpenWriteStream(Func<Stream, Task> ReaderTask)
         {
-            this.Pipe       = new Pipe();
-            this.Reader     = Pipe.Reader.AsStream(true);
-            this.Writer     = Pipe.Writer.AsStream(true);
-            this.ReaderTask = Task.Run(() => ReaderTask(Reader));
+            this.Pipe   = new Pipe();
+            this.Reader = Pipe.Reader.AsStream();
+            this.Writer = Pipe.Writer.AsStream();
+
+            this.ReaderTask = Task
+                .Run(() => ReaderTask(Reader))
+                .ContinueWith(t =>
+                    Pipe.Reader.Complete(t.Exception),
+                    TaskContinuationOptions.OnlyOnRanToCompletion);
         }
 
         public override void Flush() => Writer.Flush();
@@ -50,7 +55,6 @@ namespace Wivuu.GlobalCache.AzureStorage
         {
             Pipe.Writer.Complete();
             ReaderTask.Wait();
-            Pipe.Reader.Complete();
 
             base.Close();
         }
@@ -65,12 +69,11 @@ namespace Wivuu.GlobalCache.AzureStorage
         {
             Pipe.Writer.Complete();
             await ReaderTask.ConfigureAwait(false);
-            Pipe.Reader.Complete();
-            
+
             await base.DisposeAsync().ConfigureAwait(false);
         }
 
-        public override int EndRead(IAsyncResult asyncResult) => 
+        public override int EndRead(IAsyncResult asyncResult) =>
             Reader.EndRead(asyncResult);
 
         public override void EndWrite(IAsyncResult asyncResult) =>
@@ -93,13 +96,13 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         public override void Write(ReadOnlySpan<byte> buffer) => Writer.Write(buffer);
 
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => 
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
             Writer.WriteAsync(buffer, offset, count, cancellationToken);
 
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => 
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
             Writer.WriteAsync(buffer, cancellationToken);
 
-        public override void WriteByte(byte value) => 
+        public override void WriteByte(byte value) =>
             Writer.WriteByte(value);
     }
 }
