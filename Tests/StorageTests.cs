@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -166,99 +167,42 @@ namespace Tests
             var otherTasks = new List<Task>();
 
             // Simulate bad things
-            for (var i = 0; i < 100; ++i)
+            var rand = new Random();
+            for (var i = 0; i < 1000; ++i)
             {
                 otherTasks.Add(Task.Run(async () => Assert.Equal(str, await GetOrCreateAsync())));
 
-                // if (i % 5 == 0)
-                // {
-                //     await azStore.WaitForLock(id);
-                //     await azStore.RemoveAsync(id);
-                // }
+                if (i % rand.Next(1,5) == 0)
+                    otherTasks.Add(azStore.RemoveAsync(id));
             }
 
             await Task.WhenAll(otherTasks);
 
-            // Assert.Equal(1, writes);
-
             async Task<string> GetOrCreateAsync()
             {
                 // Try to read the data
-                await using (var handle = await azStore.GetReadWriteHandleAsync(id))
+                await using (var handle = await azStore.CreateReaderWriterHandle(id))
                 {
-                    if (handle.Writer is Stream writeStream)
+                    if (handle.Writer is PipeWriter writer)
                     {
                         // !!!!Expensive data generation here!!!!
-                        await Task.Delay(1000);
-                        await writeStream.WriteAsync(Encoding.Default.GetBytes(str!));
+                        // await Task.Delay(10);
+                        await writer.WriteAsync(Encoding.Default.GetBytes(str!));
                         Interlocked.Increment(ref writes);
+                        writer.Complete();
                         // !!!!
 
                         return str!;
                     }
-                    else if (handle.Reader is Stream readStream)
+                    else if (handle.Reader is PipeReader reader)
                     {
+                        using var readStream = reader.AsStream();
                         using var sr = new StreamReader(readStream);
+
                         return await sr.ReadToEndAsync();
                     }
-                }
-
-                await azStore.WithLockAsync(id, async (client, lease) =>
-                {
-                    // Lease acquired
-                });
-
-                // Attempt to read data
-                switch (await azStore!.ExistsAsync(id))
-                {
-                    case CacheStatus.NotExists:
-                        while (true)
-                        {
-                            try
-                            {
-                                // Attempt write data
-                                using var writer = await azStore.OpenWriteAsync(id);
-
-                                // !!!!Expensive data generation here!!!!
-                                {
-                                    await Task.Delay(1000);
-                                    await writer.WriteAsync(Encoding.Default.GetBytes(str!));
-
-                                    Interlocked.Increment(ref writes);
-
-                                    return str!;
-                                }
-                            }
-                            catch (RequestFailedException e)
-                            {
-                                if (e.Status == 409) // Blob already exists
-                                {
-                                    if (await azStore.WaitForLock(id))
-                                        return await GetAsync();
-                                    else
-                                        continue;
-                                }
-
-                                throw;
-                            }   
-                        }
-                        
-                    case CacheStatus.Locked:
-                        await azStore.WaitForLock(id);
-                        return await GetAsync();
-
-                    default:
-                        return await GetAsync();
-                }
-            }
-
-            async Task<string> GetAsync()
-            {
-                await using (var stream = azStore!.OpenReadAsync(id))
-                {
-                    using var sr = new StreamReader(stream);
-                    var result = await sr.ReadToEndAsync();
-                    return result;
+                    else
+                        throw new NotSupportedException();
                 }
             }
         }

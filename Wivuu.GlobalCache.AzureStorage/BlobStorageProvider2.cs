@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
@@ -12,8 +13,6 @@ namespace Wivuu.GlobalCache.AzureStorage
 {
     public class BlobStorageProvider2 : IStorageProvider
     {
-        public delegate Task WithLeaseDelegate(BlobClient client, string lease);
-
         public BlobStorageProvider2(StorageSettings settings)
         {
             if (settings.ConnectionString == null)
@@ -31,23 +30,18 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
-        static IDictionary<string, string> PartialMetadata = new Dictionary<string, string>
-        {
-            ["partial"] = "1"
-        };
-
         private static string IdToString(CacheIdentity id) =>
             $"{id.Category}/{id.Hashcode}.dat";
 
-        private static bool IsPendingOrLocked(BlobProperties properties) =>
-            properties.LeaseState != LeaseState.Available ||
+        internal static bool IsPendingOrLocked(BlobProperties properties) =>
+            properties.LeaseState == LeaseState.Leased ||
             properties.Metadata.TryGetValue("partial", out _);
 
-        private async Task<ETag?> GetUnlockedETag(BlobClient blobClient, CancellationToken cancellationToken = default)
+        internal static async Task<ETag?> GetUnlockedETag(BlobClient client, CancellationToken cancellationToken = default)
         {
             try
             {
-                var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+                var properties = await client.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 if (IsPendingOrLocked(properties.Value))
                     return properties.Value.ETag;
@@ -68,139 +62,200 @@ namespace Wivuu.GlobalCache.AzureStorage
             var path       = IdToString(id);
             var blobClient = ContainerClient.GetBlobClient(path);
 
-            if (await GetUnlockedETag(blobClient, cancellationToken) is ETag etag && etag != ETag.All)
+            if (await GetUnlockedETag(blobClient, cancellationToken) is var etag && (etag == null || etag != ETag.All))
             {
-                await blobClient.DeleteIfExistsAsync(
-                    conditions: new BlobRequestConditions { IfMatch = etag },
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await blobClient.DeleteIfExistsAsync(
+                        conditions: new BlobRequestConditions { IfMatch = etag },
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                }
+                catch (RequestFailedException e)
+                {
+                    if (e.Status != 412)
+                        throw;
+                }
             }
         }
 
-        public async Task WithLockAsync(CacheIdentity id, WithLeaseDelegate callback, CancellationToken cancellationToken = default)
+        public async Task<ReaderWriter> CreateReaderWriterHandle(CacheIdentity id, CancellationToken cancellationToken = default)
         {
-            var path       = IdToString(id);
-            var blobClient = ContainerClient.GetBlobClient(path);
-            var lease      = new BlobLeaseClient(blobClient);
+            var path   = IdToString(id);
+            var handle = new ReaderWriter(ContainerClient.GetBlockBlobClient(path));
+
+            while (!cancellationToken.IsCancellationRequested &&
+                   !await handle.TryOpenRead() &&
+                   !await handle.TryOpenWrite())
+                // await Task.Yield();
+                await Task.Delay(1);
+
+            return handle;
+        }
+    }
+
+    public class ReaderWriter : IAsyncDisposable
+    {
+        static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
+
+        static IDictionary<string, string> PartialMetadata = new Dictionary<string, string>
+        {
+            ["partial"] = "1"
+        };
+
+        internal ReaderWriter(BlockBlobClient client)
+        {
+            this.Client = client;
+            this.Pipe   = new Pipe();
+        }
+
+        protected BlockBlobClient Client { get; }
+        protected Pipe Pipe { get; }
+        protected bool IsReader { get; set; }
+        public Task? UploadTask { get; private set; }
+
+        public PipeWriter? Writer => IsReader ? null : Pipe.Writer;
+        public PipeReader? Reader => IsReader ? Pipe.Reader : null;
+
+        private static bool IsPendingOrLocked(BlobProperties properties) =>
+            properties.LeaseState != LeaseState.Available ||
+            properties.Metadata.TryGetValue("partial", out _);
+
+        private async Task<ETag?> GetUnlockedETag(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var properties = await Client.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                if (!IsPendingOrLocked(properties.Value))
+                    return properties.Value.ETag;
+            }
+            catch (RequestFailedException e)
+            {
+                if (e.Status == 404)
+                    return ETag.All;
+
+                throw;
+            }
+
+            return default;
+        }
+
+        internal async Task<bool> TryOpenRead(CancellationToken cancellationToken = default)
+        {
+            if (await GetUnlockedETag() is ETag etag && etag != ETag.All)
+            {
+                IsReader = true;
+                using var writerStream = Pipe.Writer.AsStream(true);
+
+                _ = Task.Run(async () =>
+                {
+                    int tries = 0;
+                    while (!cancellationToken.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            await Client.DownloadToAsync(writerStream,
+                                conditions: new BlobRequestConditions { IfMatch = etag },
+                                cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                            Pipe.Writer.Complete();
+                            break;
+                        }
+                        catch (Exception error)
+                        {
+                            if (tries > 5)
+                            {
+                                Pipe.Writer.Complete(error);
+                                break;
+                            }
+                            else
+                            {
+                                await Task.Yield();
+                                if (await GetUnlockedETag() is ETag newEtag && newEtag != ETag.All)
+                                    etag = newEtag;
+                            }
+                        }
+                    }
+                });
+
+                return true;
+            }
+
+            return false;
+        }
+
+        internal async Task<bool> TryOpenWrite(CancellationToken cancellationToken = default)
+        {
+            var lease = new BlobLeaseClient(Client);
 
             // Get an exclusive lock on the blob
             ETag etag;
             try
             {
                 // Truncate the blob or create a new one
-                var response = await blobClient.UploadAsync(
+                var response = await Client.UploadAsync(
                     Stream.Null,
+                    conditions: new BlobRequestConditions { IfNoneMatch = ETag.All },
                     metadata: PartialMetadata,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 etag = response.Value.ETag;
             }
-            catch (RequestFailedException e)
+            catch (RequestFailedException)
             {
                 // If this is locked already, do *something*
-
-                throw;
-            }
-
-            try 
-            {
-                await lease.AcquireAsync(LeaseTimeout,
-                    conditions: new RequestConditions { IfMatch = etag },
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-            }
-            catch (RequestFailedException e)
-            {
-                // If this is locked already, do *something*
-
-                throw;
+                return false;
             }
 
             try
             {
-                // Execute delegate
-                await callback.Invoke(blobClient, lease.LeaseId);
-            }
-            finally
-            {
-                // Release lock
-                await lease.ReleaseAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-            }
-        }
-
-        public async Task<ReaderWriter> GetReadWriteHandleAsync(CacheIdentity id, CancellationToken cancellationToken = default)
-        {
-            // Check if lease or pending lease
-            var path       = IdToString(id);
-            var blobClient = ContainerClient.GetBlobClient(path);
-
-            if (await GetUnlockedETag(blobClient, cancellationToken) is ETag etag && etag != ETag.All)
-            {
-                // File can be downloaded
-                return ReaderWriter.CreateReader(blobClient, etag);
-            }
-
-            try
-            {
-                var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-
-                if (IsPendingOrLocked(properties.Value) == false)
-                    return ReaderWriter.CreateReader(blobClient, properties.Value.ETag);
-                else
-                    return await LockCreateWriter();
-            }
-            catch (RequestFailedException e)
-            {
-                if (e.Status == 404)
-                    return await LockCreateWriter();
-
-                throw;
-            }
-
-            async Task<ReaderWriter> LockCreateWriter()
-            {
-                var lease = new BlobLeaseClient(blobClient);
-
-                // Truncate the blob or create a new one
-                var response = await blobClient!.UploadAsync(
-                    Stream.Null,
-                    metadata: PartialMetadata,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-
                 await lease.AcquireAsync(LeaseTimeout,
-                    conditions: new RequestConditions { IfMatch = response.Value.ETag },
+                    conditions: new RequestConditions { IfNoneMatch = ETag.All },
                     cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
+            catch (RequestFailedException)
+            {
+                // If this is locked already, do *something*
+                return false;
+            }
 
+            IsReader = false;
+
+            // Open writer
+            UploadTask = Task.Run(async () =>
+            {
                 try
                 {
-                    return ReaderWriter.CreateWriter(blobClient, response.Value.ETag);
+                    using (var reader = Pipe.Reader.AsStream())
+                    {
+                        await Client.UploadAsync(reader,
+                            conditions: new BlobRequestConditions {  IfMatch = ETag.All, LeaseId = lease.LeaseId },
+                            cancellationToken: cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Pipe.Reader.Complete(e);
                 }
                 finally
                 {
-                    await lease.ReleaseAsync().ConfigureAwait(false);
-                }   
-            }
-        }
-    }
+                    // Release lock
+                    await lease.ReleaseAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
+            });
 
-    public class ReaderWriter : IAsyncDisposable
-    {
-        internal ReaderWriter()
-        {
-
+            return true;
         }
 
-        internal static ReaderWriter CreateReader(BlobClient blobClient, ETag etag)
-        {
-            return new ReaderWriter
-            {
-
-            };
-        }
-
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             // Release lock (if it has one)
-
-            return default;
+            if (UploadTask is Task t)
+            {
+                Pipe.Writer.Complete();
+                await t.ConfigureAwait(false);
+            }
         }
     }
 }
