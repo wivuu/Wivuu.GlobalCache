@@ -12,7 +12,7 @@ namespace Tests
     public class StorageTests
     {
         [Fact]
-        public async Task TestAzureStorage()
+        public async Task TestReadWrite()
         {
             var azStore = new BlobStorageProvider(new StorageSettings
             {
@@ -21,6 +21,8 @@ namespace Tests
 
             var id  = new CacheIdentity("Test");
             var str = "hello world" + Guid.NewGuid();
+
+            await azStore.RemoveAsync(id);
 
             // Write file
             using (var stream = azStore.OpenWrite(id))
