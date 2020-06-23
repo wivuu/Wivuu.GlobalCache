@@ -35,7 +35,7 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         private async Task<bool> WaitUntilUnlocked(BlobClient lockFile, string path) 
         {
-            using var retry = new RetryHelper(1, 50, totalMaxDelay: TimeSpan.FromSeconds(60));
+            using var retry = new RetryHelper(1, 50, totalMaxDelay: LeaseTimeout);
 
             do
             {
@@ -88,7 +88,7 @@ namespace Wivuu.GlobalCache.AzureStorage
                 await lockFile.UploadAsync(Stream.Null, conditions: new BlobRequestConditions { IfNoneMatch = ETag.All });
                 var leaseClient = new BlobLeaseClient(lockFile);
 
-                await leaseClient.AcquireAsync(TimeSpan.FromSeconds(60));
+                await leaseClient.AcquireAsync(LeaseTimeout);
 
                 return new AsyncDisposable(async () => 
                 {
