@@ -12,27 +12,12 @@ namespace Wivuu.GlobalCache.AzureStorage
             throw new NotImplementedException();
         }
 
-        public Task CreateAsync<T>(CacheIdentity id, Func<GlobalCacheEntrySettings, IAsyncEnumerable<T>> generator, CancellationToken cancellationToken = default)
-        {
-            throw new NotImplementedException();
-        }
-
         public ValueTask<T> GetAsync<T>(CacheIdentity id, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
 
-        public IAsyncEnumerable<T> GetManyAsync<T>(CacheIdentity id, CancellationToken cancellationToken = default)
-        {
-            throw new NotImplementedException();
-        }
-
         public ValueTask<T> GetOrCreateAsync<T>(CacheIdentity id, Func<GlobalCacheEntrySettings, ValueTask<T>> generator, CancellationToken cancellationToken = default)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IAsyncEnumerable<T> GetOrCreateAsync<T>(CacheIdentity id, Func<GlobalCacheEntrySettings, IAsyncEnumerable<T>> generator, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
