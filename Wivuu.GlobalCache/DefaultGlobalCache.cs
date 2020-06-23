@@ -21,7 +21,7 @@ namespace Wivuu.GlobalCache
         {
             StorageProvider.OpenReadWriteAsync(id, onWrite: stream =>
             {
-                return 0;
+                return generator();
             });
         }
 
