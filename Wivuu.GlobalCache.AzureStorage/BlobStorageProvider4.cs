@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
@@ -32,68 +31,24 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         private static string IdToString(CacheIdentity id) =>
             $"{id.Category}/{id.Hashcode}.dat";
-
-        private async Task<bool> WaitUntilUnlocked(BlobClient lockFile, string path) 
-        {
-            using var retry = new RetryHelper(1, 50, totalMaxDelay: LeaseTimeout);
-
-            do
-            {
-                if (await GetIsLocked() == false)
-                    return true;
-
-                if (await retry.DelayAsync() == false)
-                    return false;
-            }
-            while (true);
-
-            async Task<bool> GetIsLocked()
-            {
-                try
-                {
-                    var response = await lockFile.GetPropertiesAsync();
-
-                    // If the lock file does exist, but its lease is expired or broken
-                    // delete the lock
-                    if (response.Value.LeaseState == LeaseState.Expired ||
-                        response.Value.LeaseState == LeaseState.Broken)
-                    {
-                        await lockFile.DeleteIfExistsAsync(conditions: new BlobRequestConditions
-                        {
-                            IfMatch = response.Value.ETag
-                        });
-
-                        return false;
-                    }
-
-                    return true;
-                }
-                catch (RequestFailedException e)
-                {
-                    if (e.Status == 404)
-                        return false;
-
-                    if (e.Status == 409)
-                        return true;
-
-                    throw;
-                }
-            }
-        }
         
         private async Task<AsyncDisposable?> EnterWrite(BlobClient lockFile, string path)
         {
             try
             {
-                await lockFile.UploadAsync(Stream.Null, conditions: new BlobRequestConditions { IfNoneMatch = ETag.All });
+                await lockFile
+                    .UploadAsync(Stream.Null, conditions: new BlobRequestConditions { IfNoneMatch = ETag.All })
+                    .ConfigureAwait(false);
+
                 var leaseClient = new BlobLeaseClient(lockFile);
 
-                await leaseClient.AcquireAsync(LeaseTimeout);
+                await leaseClient.AcquireAsync(LeaseTimeout).ConfigureAwait(false);
 
                 return new AsyncDisposable(async () => 
                 {
-                    await leaseClient.ReleaseAsync().ConfigureAwait(false);
-                    await lockFile.DeleteIfExistsAsync().ConfigureAwait(false);
+                    await lockFile
+                        .DeleteIfExistsAsync(conditions: new BlobRequestConditions { LeaseId = leaseClient.LeaseId })
+                        .ConfigureAwait(false);
                 });
             }
             catch (NullReferenceException)
@@ -115,11 +70,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             var client     = ContainerClient.GetBlobClient(path);
             var lockClient = ContainerClient.GetBlobClient(path + ".lock");
 
-            // If lockfile exists - WAIT FOR LOCKFILE to go away (timeout 1 minute)
-            if (!await WaitUntilUnlocked(lockClient, path))
-                throw new Exception($"{path} was locked");
-
-            await client.DeleteIfExistsAsync();
+            await client.DeleteIfExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id, ReaderWriterHandle<T> handle, CancellationToken cancellationToken = default)
@@ -128,16 +79,11 @@ namespace Wivuu.GlobalCache.AzureStorage
             var client     = ContainerClient.GetBlobClient(path);
             var lockClient = ContainerClient.GetBlobClient(path + ".lock");
 
-            using var retries = new RetryHelper(1, 30);
+            using var retries = new RetryHelper(1, 30, totalMaxDelay: LeaseTimeout);
 
             // Wait for break in traffic
             do
             {
-                // Wait to be unlocked
-                if (!await WaitUntilUnlocked(lockClient, path))
-                    // Unable to enter read
-                    throw new Exception($"{path} was locked");
-
                 // Try to READ file
                 if (handle.Reader is ReaderWriterHandle<T>.ReadCallback reader)
                 {
@@ -151,9 +97,12 @@ namespace Wivuu.GlobalCache.AzureStorage
                         var readerTask = reader(pipe.Reader.AsStream());
                         
                         await Task.WhenAll(
-                            readerTask.ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
-                            client.DownloadToAsync(writerStream, cancellationToken: cts.Token).ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
-                        );
+                            readerTask
+                                .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
+                            client
+                                .DownloadToAsync(writerStream, cancellationToken: cts.Token)
+                                .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
+                        ).ConfigureAwait(false);
 
                         if (readerTask.IsCompletedSuccessfully)
                             return readerTask.Result;
@@ -173,7 +122,7 @@ namespace Wivuu.GlobalCache.AzureStorage
                     var pipe = new Pipe();
 
                     // Create lock
-                    if (!(await EnterWrite(lockClient, path) is IAsyncDisposable disposable))
+                    if (!(await EnterWrite(lockClient, path).ConfigureAwait(false) is IAsyncDisposable disposable))
                         // Unable to enter write
                         continue;
 
@@ -185,8 +134,11 @@ namespace Wivuu.GlobalCache.AzureStorage
                         var writerTask = writer(pipe.Writer.AsStream());
                         
                         await Task.WhenAll(
-                            client.UploadAsync(readerStream, cancellationToken: cancellationToken).ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
-                            writerTask.ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
+                            client
+                                .UploadAsync(readerStream, cancellationToken: cancellationToken)
+                                .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
+                            writerTask
+                                .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
                         ).ConfigureAwait(false);
 
                         if (writerTask.IsCompletedSuccessfully)
@@ -194,13 +146,16 @@ namespace Wivuu.GlobalCache.AzureStorage
                     }
                     finally
                     {
-                        await disposable.DisposeAsync();
+                        await disposable.DisposeAsync().ConfigureAwait(false);
                     }
                 }
-            }
-            while (!cancellationToken.IsCancellationRequested && await retries.DelayAsync());
 
-            throw new Exception("Failed to read write stuff");
+                if (await retries.DelayAsync().ConfigureAwait(false) == false)
+                    throw new TimeoutException();
+            }
+            while (!cancellationToken.IsCancellationRequested);
+
+            throw new TaskCanceledException();
         }
     }
 

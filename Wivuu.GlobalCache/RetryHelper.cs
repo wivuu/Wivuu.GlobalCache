@@ -42,7 +42,7 @@ namespace Wivuu.GlobalCache
             var delay = this.DelayEnumerator.Current;
 
             if (delay > 0)
-                await Task.Delay(delay);
+                await Task.Delay(delay).ConfigureAwait(false);
 
             TotalDelay += TimeSpan.FromMilliseconds(delay);
             if (TotalDelay > TotalMaxDelay)
