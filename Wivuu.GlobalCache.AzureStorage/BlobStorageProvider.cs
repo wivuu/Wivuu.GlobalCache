@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
@@ -12,8 +12,6 @@ namespace Wivuu.GlobalCache.AzureStorage
 {
     public class BlobStorageProvider : IStorageProvider
     {
-        static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
-
         public BlobStorageProvider(StorageSettings settings)
         {
             if (settings.ConnectionString == null)
@@ -26,156 +24,140 @@ namespace Wivuu.GlobalCache.AzureStorage
             this.ContainerClient = blobServiceClient.GetBlobContainerClient(settings.ContainerName);
         }
 
-        public StorageSettings Settings { get; }
+        protected StorageSettings Settings { get; }
+        
         protected BlobContainerClient ContainerClient { get; }
 
-        private static string IdToString(CacheIdentity id) =>
-            $"{id.Category}/{id.Hashcode}.dat";
+        static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
-        public async Task<CacheStatus> ExistsAsync(CacheIdentity id, CancellationToken cancellationToken = default)
+        static string IdToString(CacheIdentity id) => $"{id.Category}/{id.Hashcode}.dat";
+        
+        private async Task<AsyncDisposable?> EnterWrite(string path)
         {
-            var path       = IdToString(id);
-            var blobClient = ContainerClient.GetBlobClient(path);
-
             try
             {
-                var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+                var lockFile = ContainerClient.GetBlobClient(path + ".lock");
 
-                // Check if blob is locked
-                return properties.Value.LeaseState == LeaseState.Leased 
-                    ? CacheStatus.Locked 
-                    : CacheStatus.Exists;
-            }
-            catch (RequestFailedException e)
-            {
-                if (e.Status == 404)
-                    return CacheStatus.NotExists;
-                else
-                    throw;
-            }
-        }
+                await lockFile
+                    .UploadAsync(Stream.Null, conditions: new BlobRequestConditions { IfNoneMatch = ETag.All })
+                    .ConfigureAwait(false);
 
-        public async Task<bool> WaitForLock(CacheIdentity id, string? etag = default, CancellationToken cancellationToken = default)
-        {
-            var path       = IdToString(id);
-            var blobClient = ContainerClient.GetBlobClient(path);
+                var leaseClient = new BlobLeaseClient(lockFile);
 
-            try
-            {
-                using var retries = new RetryHelper(2, maxDelay: 100, totalMaxDelay: LeaseTimeout);
+                await leaseClient.AcquireAsync(LeaseTimeout).ConfigureAwait(false);
 
-                do
+                return new AsyncDisposable(async () => 
                 {
-                    var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-
-                    // Check if blob is locked & not partial
-                    if (properties.Value.Metadata.TryGetValue("partial", out _) == false && 
-                        properties.Value.LeaseState != LeaseState.Leased)
-                        break;
-
-                    if (!await retries.DelayAsync())
-                        // Out of retries
-                        throw new Exception("Lock past ");
-                }
-                while (!cancellationToken.IsCancellationRequested);
-
-                return true;
+                    await lockFile
+                        .DeleteIfExistsAsync(conditions: new BlobRequestConditions { LeaseId = leaseClient.LeaseId })
+                        .ConfigureAwait(false);
+                });
             }
             catch (RequestFailedException e)
             {
-                if (e.Status == 404)
-                    return false;
+                if (e.Status == 409 || e.Status == 412)
+                    return default;
 
                 throw;
             }
         }
-
-        public Stream OpenReadAsync(CacheIdentity id, CancellationToken cancellationToken = default)
-        {
-            var path = IdToString(id);
-
-            if (ContainerClient.GetBlobClient(path) is BlobClient blobClient)
-            {
-                var pipe = new System.IO.Pipelines.Pipe();
-
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        using var writerStream = pipe.Writer.AsStream(true);
-
-                        await blobClient.DownloadToAsync(writerStream, cancellationToken).ConfigureAwait(false);
-                        pipe.Writer.Complete();
-                    }
-                    catch (Exception error)
-                    {
-                        pipe.Writer.Complete(error);
-                    }
-                });
-
-                return pipe.Reader.AsStream();
-            }
-
-            return Stream.Null;
-        }
-
-        public async Task<Stream> OpenWriteAsync(CacheIdentity id, CancellationToken cancellationToken = default)
-        {
-            var path       = IdToString(id);
-            var blobClient = ContainerClient.GetBlobClient(path);
-            var lease      = await LeaseAndTruncateAsync(id, blobClient, cancellationToken);
-
-            return new OpenWriteStream(async stream =>
-            {
-                await using (lease)
-                {
-                    await blobClient.UploadAsync(stream, 
-                        conditions: new BlobRequestConditions { LeaseId = lease.Id }, 
-                        cancellationToken: cancellationToken).ConfigureAwait(false);
-                }
-            });
-        }
-
+        
         public async Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
         {
-            var path       = IdToString(id);
-            var blobClient = ContainerClient.GetBlobClient(path);
+            var path   = IdToString(id);
+            var client = ContainerClient.GetBlobClient(path);
 
-            await blobClient.DeleteIfExistsAsync();
+            // TODO: Should we check for a lock?
+
+            await client.DeleteIfExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
-        private async Task<BlobLock> LeaseAndTruncateAsync(CacheIdentity id, BlobClient blobClient, CancellationToken cancellationToken = default)
+        public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id,
+                                                   Func<Stream, Task<T>>? onRead,
+                                                   Func<Stream, Task<T>>? onWrite,
+                                                   CancellationToken cancellationToken = default)
         {
-            var lease = new BlobLeaseClient(blobClient);
+            var path   = IdToString(id);
+            var client = ContainerClient.GetBlobClient(path);
 
-            await blobClient.UploadAsync(
-                Stream.Null,
-                metadata: new Dictionary<string, string>
-                {
-                    ["partial"] = "1"
-                }, 
-                cancellationToken: cancellationToken).ConfigureAwait(false);
+            using var retries = new RetryHelper(1, 30, totalMaxDelay: LeaseTimeout);
 
-            await lease.AcquireAsync(LeaseTimeout, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            return new BlobLock(lease.LeaseId, () => lease.ReleaseAsync());
-        }
-
-        private class BlobLock : AsyncDisposable
-        {
-            public BlobLock(string leaseId, Func<Task> done) : base(done)
+            // Wait for break in traffic
+            do
             {
-                Id = leaseId;
+                // Try to READ file
+                if (onRead != null)
+                {
+                    var pipe = new Pipe();
+
+                    try
+                    {
+                        using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        using var writerStream = pipe.Writer.AsStream(true);
+
+                        var readerTask = onRead(pipe.Reader.AsStream(true));
+                        
+                        await Task.WhenAll(
+                            readerTask
+                                .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
+                            client
+                                .DownloadToAsync(writerStream, cancellationToken: cts.Token)
+                                .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
+                        ).ConfigureAwait(false);
+
+                        if (readerTask.IsCompletedSuccessfully)
+                            return readerTask.Result;
+                    }
+                    catch (RequestFailedException e)
+                    {
+                        // Throw if error is not 404
+                        if (e.Status != 404)
+                            throw;
+                    }
+                }
+
+                // Try to WRITE file
+                if (onWrite != null)
+                {
+                    // Create a new pipe
+                    var pipe = new Pipe();
+
+                    // Create lock
+                    if (!(await EnterWrite(path).ConfigureAwait(false) is IAsyncDisposable disposable))
+                        // Unable to enter write
+                        continue;
+
+                    // Upload file
+                    try
+                    {
+                        using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        using var readerStream = pipe.Reader.AsStream(true);
+
+                        var writerTask = onWrite(pipe.Writer.AsStream(true));
+                        
+                        await Task.WhenAll(
+                            writerTask
+                                .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException())),
+                            client
+                                .UploadAsync(readerStream, cancellationToken: cts.Token)
+                                .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException()))
+                        ).ConfigureAwait(false);
+
+                        if (writerTask.IsCompletedSuccessfully)
+                            return writerTask.Result;
+                    }
+                    finally
+                    {
+                        await disposable.DisposeAsync().ConfigureAwait(false);
+                    }
+                }
+
+                if (await retries.DelayAsync().ConfigureAwait(false) == false)
+                    throw new TimeoutException();
             }
+            while (!cancellationToken.IsCancellationRequested);
 
-            public string Id { get; }
+            throw new TaskCanceledException();
         }
-    }
-
-    public enum CacheStatus
-    {
-        NotExists,
-        Locked,
-        Exists,
     }
 }
