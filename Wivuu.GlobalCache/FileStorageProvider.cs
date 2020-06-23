@@ -82,8 +82,7 @@ namespace Wivuu.GlobalCache
                     }
                     catch (IOException e)
                     {
-                        if (e is FileNotFoundException)
-                        {}
+                        if (e is FileNotFoundException) {}
                         else
                             continue;
                     }

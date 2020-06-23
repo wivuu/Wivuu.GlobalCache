@@ -37,9 +37,9 @@ namespace Tests
 
             var cache = scope.ServiceProvider.GetRequiredService<IGlobalCache>();
 
-            var item = await cache.GetOrCreateAsync(new CacheIdentity("Test"), e =>
+            var item = await cache.GetOrCreateAsync(new CacheIdentity("Test"), () =>
             {
-                return new ValueTask<int>(0);
+                return Task.FromResult(0);
             });
 
             Assert.Equal(0, item);
