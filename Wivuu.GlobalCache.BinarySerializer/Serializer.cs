@@ -1,40 +1,68 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using BinaryPack;
+using MessagePack;
 
 namespace Wivuu.GlobalCache.BinarySerializer
 {
     public class Serializer : ISerializationProvider
     {
-        public Task<T> DeserializeFromStreamAsync<T>(Stream input, CancellationToken cancellationToken = default)
-            where T : new()
+        public async Task<T> DeserializeFromStreamAsync<T>(Stream input, CancellationToken cancellationToken = default)
         {
-            var result = BinaryConverter.Deserialize<T>(input);
-
-            return Task.FromResult(result);
+            return await MessagePackSerializer.DeserializeAsync<T>(
+                input, 
+                options: MessagePack.Resolvers.ContractlessStandardResolverAllowPrivate.Options,
+                cancellationToken: cancellationToken);
         }
 
-        public IAsyncEnumerable<T> DeserializeManyFromStreamAsync<T>(Stream input, CancellationToken cancellationToken = default)
-            where T : new()
+        public async IAsyncEnumerable<T> DeserializeManyFromStreamAsync<T>(Stream input, [EnumeratorCancellation]CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            var options = MessagePack.Resolvers.ContractlessStandardResolverAllowPrivate.Options;
+
+            while (true)
+            {
+                T item;
+                
+                try
+                {
+                    item = await MessagePackSerializer.DeserializeAsync<T>(
+                        input, 
+                        options: options,
+                        cancellationToken: cancellationToken);
+                }
+                catch (MessagePack.MessagePackSerializationException e)
+                {
+                    if (e.GetBaseException() is EndOfStreamException)
+                        break;
+                    else
+                        throw;
+                }
+
+                yield return item;
+            }
         }
 
-        public Task SerializeToStreamAsync<T>(T input, Stream output, CancellationToken cancellationToken = default)
-            where T : new()
+        public async Task SerializeToStreamAsync<T>(T input, Stream output, CancellationToken cancellationToken = default)
         {
-            BinaryConverter.Serialize(input, output);
-
-            return Task.CompletedTask;
+            await MessagePackSerializer.SerializeAsync(
+                output, input,
+                options: MessagePack.Resolvers.ContractlessStandardResolverAllowPrivate.Options,
+                cancellationToken: cancellationToken);
         }
 
-        public Task SerializeToStreamAsync<T>(IAsyncEnumerable<T> input, Stream output, CancellationToken cancellationToken = default)
-            where T : new()
+        public async Task SerializeToStreamAsync<T>(IAsyncEnumerable<T> input, Stream output, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            var options = MessagePack.Resolvers.ContractlessStandardResolverAllowPrivate.Options;
+
+            await foreach (var i in input)
+            {
+                await MessagePackSerializer.SerializeAsync(
+                    output, i,
+                    options: options,
+                    cancellationToken: cancellationToken);
+            }
         }
     }
 }

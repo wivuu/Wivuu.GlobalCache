@@ -9,20 +9,16 @@ namespace Wivuu.GlobalCache
     {
         Task SerializeToStreamAsync<T>(T input,
                                        Stream output,
-                                       CancellationToken cancellationToken = default)
-            where T : new();
+                                       CancellationToken cancellationToken = default);
 
         Task SerializeToStreamAsync<T>(IAsyncEnumerable<T> input,
                                        Stream output,
-                                       CancellationToken cancellationToken = default)
-            where T : new();
+                                       CancellationToken cancellationToken = default);
 
         Task<T> DeserializeFromStreamAsync<T>(Stream input,
-                                              CancellationToken cancellationToken = default)
-            where T : new();
+                                              CancellationToken cancellationToken = default);
 
         IAsyncEnumerable<T> DeserializeManyFromStreamAsync<T>(Stream input,
-                                                              CancellationToken cancellationToken = default)
-            where T : new();
+                                                              CancellationToken cancellationToken = default);
     }
 }
