@@ -12,11 +12,15 @@ namespace Wivuu.GlobalCache
 
             IEnumerable<int> Delays()
             {
+                var random = new Random();
                 var tries = 0;
                 
                 while (true)
                 {
-                    yield return Math.Min((int)Math.Pow(2, tries) + initialDelay, maxDelay);
+                    var proposed = Math.Min((int)Math.Pow(2, tries) + initialDelay, maxDelay);
+                    var wiggle   = random.Next(0, 5);
+
+                    yield return proposed + wiggle;
 
                     if (tries++ > maxTries == true)
                         yield break;

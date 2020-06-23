@@ -56,6 +56,10 @@ namespace Wivuu.GlobalCache.AzureStorage
 
                 return true;
             }
+            catch (NullReferenceException)
+            {
+                return false;
+            }
             catch (RequestFailedException e)
             {
                 if (e.Status == 409)
@@ -78,12 +82,13 @@ namespace Wivuu.GlobalCache.AzureStorage
             await client.DeleteIfExistsAsync();
         }
 
-        public async Task OpenReadWriteAsync(CacheIdentity id, ReaderWriterHandle handle, CancellationToken cancellationToken = default)
+        public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id, ReaderWriterHandle<T> handle, CancellationToken cancellationToken = default)
         {
             var path       = IdToString(id);
             var client     = ContainerClient.GetBlobClient(path);
             var lockClient = ContainerClient.GetBlobClient(path + ".lock");
-            var pipe       = new Pipe();
+
+            using var retries = new RetryHelper(1, 30);
 
             // Wait for break in traffic
             do
@@ -93,19 +98,24 @@ namespace Wivuu.GlobalCache.AzureStorage
                     throw new Exception($"{path} was locked");
 
                 // Try to READ file
-                if (handle.Reader is ReaderWriterHandle.ReadCallback reader)
+                if (handle.Reader is ReaderWriterHandle<T>.ReadCallback reader)
                 {
+                    var pipe = new Pipe();
+
                     try
                     {
+                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         using var writerStream = pipe.Writer.AsStream(true);
+
+                        var readerTask = reader(pipe.Reader.AsStream());
                         
-                        var readerTask = reader(pipe.Reader.AsStream()).ContinueWith(t => pipe.Reader.Complete(t.Exception));
+                        await Task.WhenAll(
+                            readerTask.ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
+                            client.DownloadToAsync(writerStream, cancellationToken: cts.Token).ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
+                        );
 
-                        await client.DownloadToAsync(writerStream, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-                        pipe.Writer.Complete();
-
-                        await readerTask;
+                        if (readerTask.IsCompletedSuccessfully)
+                            return readerTask.Result;
                     }
                     catch (RequestFailedException e)
                     {
@@ -116,8 +126,11 @@ namespace Wivuu.GlobalCache.AzureStorage
                 }
 
                 // Try to WRITE file
-                if (handle.Writer is ReaderWriterHandle.WriteCallback writer)
+                if (handle.Writer is ReaderWriterHandle<T>.WriteCallback writer)
                 {
+                    // Create a new pipe
+                    var pipe = new Pipe();
+
                     // Create lock
                     if (await CreateLock(lockClient, path) == false)
                         // Skip to next iteration of loop
@@ -128,12 +141,15 @@ namespace Wivuu.GlobalCache.AzureStorage
                     {
                         using var readerStream = pipe.Reader.AsStream();
 
-                        var writerTask = writer(pipe.Writer.AsStream()).ContinueWith(t => pipe.Writer.Complete(t.Exception));
+                        var writerTask = writer(pipe.Writer.AsStream());
                         
                         await Task.WhenAll(
-                            client.UploadAsync(readerStream, cancellationToken: cancellationToken),
-                            writerTask
+                            client.UploadAsync(readerStream, cancellationToken: cancellationToken).ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
+                            writerTask.ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
                         ).ConfigureAwait(false);
+
+                        if (writerTask.IsCompletedSuccessfully)
+                            return writerTask.Result;
                     }
                     finally
                     {
@@ -142,25 +158,27 @@ namespace Wivuu.GlobalCache.AzureStorage
                     }
                 }
             }
-            while (!cancellationToken.IsCancellationRequested); // TODO: replace with retry helper
+            while (!cancellationToken.IsCancellationRequested && await retries.DelayAsync());
+
+            throw new Exception("Failed to read write stuff");
         }
     }
 
-    public class ReaderWriterHandle
+    public class ReaderWriterHandle<TResult>
     {
         internal ReadCallback? Reader { get; private set; }
         internal WriteCallback? Writer { get; private set; }
 
-        public delegate Task ReadCallback(Stream stream);
-        public delegate Task WriteCallback(Stream stream);
+        public delegate Task<TResult> ReadCallback(Stream stream);
+        public delegate Task<TResult> WriteCallback(Stream stream);
 
-        public ReaderWriterHandle OnRead(ReadCallback reader)
+        public ReaderWriterHandle<TResult> OnRead(ReadCallback reader)
         {
             this.Reader = reader;
             return this;
         }
 
-        public ReaderWriterHandle OnWrite(WriteCallback writer)
+        public ReaderWriterHandle<TResult> OnWrite(WriteCallback writer)
         {
             this.Writer = writer;
             return this;

@@ -153,7 +153,6 @@ namespace Tests
             var id     = new CacheIdentity("Test", 2);
             var str    = "hello world" + Guid.NewGuid();
             var writes = 0;
-            var rand   = new Random();
 
             await azStore.RemoveAsync(id);
 
@@ -178,7 +177,7 @@ namespace Tests
                         Assert.Equal(str, task.Result)
                     ));
 
-                if (i % rand.Next(1, 5) == 0)
+                if (i % 5 == 0)
                     otherTasks.Add(azStore.RemoveAsync(id));
             }
 
@@ -192,7 +191,6 @@ namespace Tests
                     if (handle.Writer is PipeWriter writer)
                     {
                         // !!!!Expensive data generation here!!!!
-                        await Task.Delay(rand!.Next(1,10));
                         await writer.WriteAsync(Encoding.Default.GetBytes(str!));
                         Interlocked.Increment(ref writes);
                         writer.Complete();
@@ -221,10 +219,9 @@ namespace Tests
                 ConnectionString = "UseDevelopmentStorage=true"
             });
 
-            var id     = new CacheIdentity("Test", 2);
+            var id     = new CacheIdentity("Test", 3);
             var str    = "hello world" + Guid.NewGuid();
             var writes = 0;
-            var rand   = new Random();
 
             await azStore.RemoveAsync(id);
 
@@ -249,7 +246,7 @@ namespace Tests
                         Assert.Equal(str, task.Result)
                     ));
 
-                if (i % rand.Next(1, 5) == 0)
+                if (i % 5 == 0)
                     otherTasks.Add(azStore.RemoveAsync(id));
             }
 
@@ -258,11 +255,11 @@ namespace Tests
             async Task<string> GetOrCreateAsync()
             {
                 // Try to read the data
-                var handle = new ReaderWriterHandle()
+                var handle = new ReaderWriterHandle<string>()
                     .OnWrite(async stream =>
                     {
                         // !!!!Expensive data generation here!!!!
-                        await Task.Delay(rand!.Next(1,10));
+                        // await Task.Delay(rand!.Next(1,10));
                         await stream.WriteAsync(Encoding.Default.GetBytes(str!));
                         Interlocked.Increment(ref writes);
                         // !!!!
@@ -276,7 +273,7 @@ namespace Tests
                         return await sr.ReadToEndAsync();
                     });
 
-                await azStore.OpenReadWriteAsync(id, handle);
+                return await azStore.OpenReadWriteAsync(id, handle);
             }
         }
     }
