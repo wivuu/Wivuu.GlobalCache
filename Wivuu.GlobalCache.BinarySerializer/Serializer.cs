@@ -37,10 +37,7 @@ namespace Wivuu.GlobalCache.BinarySerializer
                     if (e.GetBaseException() is EndOfStreamException)
                         break;
                     else
-                    {
-                        break;
-                        // throw;
-                    }
+                        throw;
                 }
 
                 yield return item;
