@@ -21,7 +21,7 @@ namespace Wivuu.GlobalCache.BinarySerializer
         {
             var options = MessagePack.Resolvers.ContractlessStandardResolverAllowPrivate.Options;
 
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 T item;
                 
