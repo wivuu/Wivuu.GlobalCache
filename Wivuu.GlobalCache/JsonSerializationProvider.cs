@@ -2,19 +2,36 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Wivuu.GlobalCache
 {
     public class JsonSerializationProvider : ISerializationProvider
     {
-        public Task<T> DeserializeFromStreamAsync<T>(Stream input, CancellationToken cancellationToken = default)
+        static JsonSerializationProvider()
         {
-            throw new System.NotImplementedException();
+            var options = new JsonSerializerOptions
+            {
+                IgnoreNullValues = true,
+            };
+
+            options.Converters.Add(new JsonStringEnumConverter());
+
+            Options = options;
         }
 
-        public Task SerializeToStreamAsync<T>(T input, Stream output, CancellationToken cancellationToken = default)
+        public static JsonSerializerOptions Options { get; }
+
+        public async Task<T> DeserializeFromStreamAsync<T>(Stream input, CancellationToken cancellationToken = default) => 
+            await JsonSerializer.DeserializeAsync<T>(input, Options, cancellationToken).ConfigureAwait(false);
+
+        public async Task SerializeToStreamAsync<T>(T input, Stream output, CancellationToken cancellationToken = default)
         {
-            throw new System.NotImplementedException();
+            if (input is null)
+                return;
+
+            await JsonSerializer.SerializeAsync(output, input, Options, cancellationToken);
         }
     }
 }
