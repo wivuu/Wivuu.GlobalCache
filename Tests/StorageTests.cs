@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Pipelines;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Azure;
 using Wivuu.GlobalCache;
 using Wivuu.GlobalCache.AzureStorage;
 using Xunit;
