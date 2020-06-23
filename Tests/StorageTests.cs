@@ -259,7 +259,6 @@ namespace Tests
                     .OnWrite(async stream =>
                     {
                         // !!!!Expensive data generation here!!!!
-                        // await Task.Delay(rand!.Next(1,10));
                         await stream.WriteAsync(Encoding.Default.GetBytes(str!));
                         Interlocked.Increment(ref writes);
                         // !!!!
