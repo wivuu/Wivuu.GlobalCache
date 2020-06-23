@@ -51,10 +51,6 @@ namespace Wivuu.GlobalCache.AzureStorage
                         .ConfigureAwait(false);
                 });
             }
-            catch (NullReferenceException)
-            {
-                return default;
-            }
             catch (RequestFailedException e)
             {
                 if (e.Status == 409 || e.Status == 412)
@@ -94,7 +90,7 @@ namespace Wivuu.GlobalCache.AzureStorage
                         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         using var writerStream = pipe.Writer.AsStream(true);
 
-                        var readerTask = reader(pipe.Reader.AsStream());
+                        var readerTask = reader(pipe.Reader.AsStream(true));
                         
                         await Task.WhenAll(
                             readerTask
@@ -129,9 +125,9 @@ namespace Wivuu.GlobalCache.AzureStorage
                     // Upload file
                     try
                     {
-                        using var readerStream = pipe.Reader.AsStream();
+                        using var readerStream = pipe.Reader.AsStream(true);
 
-                        var writerTask = writer(pipe.Writer.AsStream());
+                        var writerTask = writer(pipe.Writer.AsStream(true));
                         
                         await Task.WhenAll(
                             client
