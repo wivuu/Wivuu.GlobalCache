@@ -87,7 +87,7 @@ namespace Wivuu.GlobalCache.AzureStorage
 
                     try
                     {
-                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         using var writerStream = pipe.Writer.AsStream(true);
 
                         var readerTask = reader(pipe.Reader.AsStream(true));
@@ -125,13 +125,14 @@ namespace Wivuu.GlobalCache.AzureStorage
                     // Upload file
                     try
                     {
+                        using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         using var readerStream = pipe.Reader.AsStream(true);
 
                         var writerTask = writer(pipe.Writer.AsStream(true));
                         
                         await Task.WhenAll(
                             client
-                                .UploadAsync(readerStream, cancellationToken: cancellationToken)
+                                .UploadAsync(readerStream, cancellationToken: cts.Token)
                                 .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
                             writerTask
                                 .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
