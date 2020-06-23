@@ -212,5 +212,72 @@ namespace Tests
                 }
             }
         }
+        
+        [Fact]
+        public async Task TestGetOrCreateBlob3()
+        {
+            var azStore = new BlobStorageProvider3(new StorageSettings
+            {
+                ConnectionString = "UseDevelopmentStorage=true"
+            });
+
+            var id     = new CacheIdentity("Test", 2);
+            var str    = "hello world" + Guid.NewGuid();
+            var writes = 0;
+            var rand   = new Random();
+
+            await azStore.RemoveAsync(id);
+
+            await Task.WhenAll(new []
+            {
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+            });
+
+            var otherTasks = new List<Task>();
+
+            // Simulate bad things
+            for (var i = 0; i < 500; ++i)
+            {
+                otherTasks.Add(
+                    GetOrCreateAsync().ContinueWith(task =>
+                        Assert.Equal(str, task.Result)
+                    ));
+
+                if (i % rand.Next(1, 5) == 0)
+                    otherTasks.Add(azStore.RemoveAsync(id));
+            }
+
+            await Task.WhenAll(otherTasks);
+
+            async Task<string> GetOrCreateAsync()
+            {
+                // Try to read the data
+                var handle = new ReaderWriterHandle()
+                    .OnWrite(async stream =>
+                    {
+                        // !!!!Expensive data generation here!!!!
+                        await Task.Delay(rand!.Next(1,10));
+                        await stream.WriteAsync(Encoding.Default.GetBytes(str!));
+                        Interlocked.Increment(ref writes);
+                        // !!!!
+
+                        return str!;
+                    })
+                    .OnRead(async stream =>
+                    {
+                        using var sr = new StreamReader(stream);
+
+                        return await sr.ReadToEndAsync();
+                    });
+
+                await azStore.OpenReadWriteAsync(id, handle);
+            }
+        }
     }
 }

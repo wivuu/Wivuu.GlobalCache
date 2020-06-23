@@ -15,7 +15,7 @@ namespace Wivuu.GlobalCache
 
         // Task<bool> ExistsAsync<T>(CacheIdentity id,
         //                           CancellationToken cancellationToken = default);
-        
+
         // Stream OpenWrite<T>(CacheIdentity id,
         //                      CancellationToken cancellationToken = default);
 
