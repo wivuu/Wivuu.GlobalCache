@@ -50,6 +50,8 @@ namespace Tests
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
             });
+            
+            await azStore.RemoveAsync(id);
 
             async Task<string> GetOrCreateAsync() => 
                 await azStore.OpenReadWriteAsync(
