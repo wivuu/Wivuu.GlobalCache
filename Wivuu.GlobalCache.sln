@@ -9,8 +9,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wivuu.GlobalCache.AzureStorage", "Wivuu.GlobalCache.AzureStorage\Wivuu.GlobalCache.AzureStorage.csproj", "{2B817F33-5AF0-4D67-9297-0CF7E11C9E70}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wivuu.GlobalCache.FileSystem", "Wivuu.GlobalCache.FileSystem\Wivuu.GlobalCache.FileSystem.csproj", "{212C9044-AAAE-43AE-99BF-79B33155CC7C}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wivuu.GlobalCache.BinarySerializer", "Wivuu.GlobalCache.BinarySerializer\Wivuu.GlobalCache.BinarySerializer.csproj", "{A71BDDD3-6F43-44D3-B434-7B1262E067EB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmarks", "Benchmarks\Benchmarks.csproj", "{C3D9D6CD-EBFF-4F4C-87BD-EA8E36274F63}"
@@ -64,18 +62,6 @@ Global
 		{2B817F33-5AF0-4D67-9297-0CF7E11C9E70}.Release|x64.Build.0 = Release|Any CPU
 		{2B817F33-5AF0-4D67-9297-0CF7E11C9E70}.Release|x86.ActiveCfg = Release|Any CPU
 		{2B817F33-5AF0-4D67-9297-0CF7E11C9E70}.Release|x86.Build.0 = Release|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Debug|x64.Build.0 = Debug|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Debug|x86.Build.0 = Debug|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Release|x64.ActiveCfg = Release|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Release|x64.Build.0 = Release|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Release|x86.ActiveCfg = Release|Any CPU
-		{212C9044-AAAE-43AE-99BF-79B33155CC7C}.Release|x86.Build.0 = Release|Any CPU
 		{A71BDDD3-6F43-44D3-B434-7B1262E067EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A71BDDD3-6F43-44D3-B434-7B1262E067EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A71BDDD3-6F43-44D3-B434-7B1262E067EB}.Debug|x64.ActiveCfg = Debug|Any CPU
