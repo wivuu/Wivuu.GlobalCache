@@ -30,28 +30,26 @@ namespace Tests
             {
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                azStore.RemoveAsync(id),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                azStore.RemoveAsync(id),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
             });
-
-            var otherTasks = new List<Task>();
-
-            // Simulate bad things
-            for (var i = 0; i < 500; ++i)
-            {
-                otherTasks.Add(
-                    GetOrCreateAsync().ContinueWith(task =>
-                        Assert.Equal(str, task.Result)
-                    ));
-
-                if (i % 5 == 0)
-                    otherTasks.Add(azStore.RemoveAsync(id));
-            }
-
-            await Task.WhenAll(otherTasks);
 
             async Task<string> GetOrCreateAsync() => 
                 await azStore.OpenReadWriteAsync(
