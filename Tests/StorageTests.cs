@@ -275,5 +275,79 @@ namespace Tests
                 return await azStore.OpenReadWriteAsync(id, handle);
             }
         }
+        
+        [Fact]
+        public async Task TestGetOrCreateBlob4()
+        {
+            var azStore = new BlobStorageProvider4(new StorageSettings
+            {
+                ConnectionString = "UseDevelopmentStorage=true"
+            });
+
+            var id     = new CacheIdentity("Test", 4);
+            var str    = "hello world" + Guid.NewGuid();
+            var writes = 0;
+
+            await azStore.RemoveAsync(id);
+
+            await Task.WhenAll(new []
+            {
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+            });
+
+            var otherTasks = new List<Task>();
+
+            // Simulate bad things
+            for (var i = 0; i < 500; ++i)
+            {
+                otherTasks.Add(
+                    GetOrCreateAsync().ContinueWith(task =>
+                        Assert.Equal(str, task.Result)
+                    ));
+
+                if (i % 5 == 0)
+                    otherTasks.Add(azStore.RemoveAsync(id));
+            }
+
+            await Task.WhenAll(otherTasks);
+
+            async Task<string> GetOrCreateAsync()
+            {
+                await foreach (var handle in azStore.OpenReadWriteAsync(id))
+                {
+                    if (handle is StorageWriter writer)
+                    {
+                        // !!!!Expensive data generation here!!!!
+                        await writer.Stream.WriteAsync(Encoding.Default.GetBytes(str!));
+                        Interlocked.Increment(ref writes);
+                        // !!!!
+
+                        return str!;
+                    }
+
+                    else if (handle is StorageReader reader)
+                    {
+                        try
+                        {
+                            using var sr = new StreamReader(reader.Stream);
+
+                            return await sr.ReadToEndAsync();
+                        }
+                        catch (NoCacheEntryException)
+                        {
+                            continue;
+                        }
+                    }
+                }
+
+                throw new TimeoutException();
+            }
+        }
     }
 }
