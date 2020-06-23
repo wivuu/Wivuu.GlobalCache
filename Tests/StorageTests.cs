@@ -12,7 +12,13 @@ namespace Tests
     public class StorageTests
     {
         [Fact]
-        public async Task TestGetOrCreateBlob()
+        public Task TestFileSystemStorage()
+        {
+            return Task.CompletedTask;
+        }
+
+        [Fact]
+        public async Task TestAzureBlobStorage()
         {
             var azStore = new BlobStorageProvider(new StorageSettings
             {
