@@ -1,5 +1,7 @@
 # Wivuu.GlobalCache
 
+TODO: Support IAsyncEnumerable in storage provider
+
 - Store serialized either as JSON or BinaryPack https://github.com/Sergio0694/BinaryPack#:~:text=To%20summarize%3A,to%20245x%20faster%20than%20Newtonsoft.
 - Store filename as {category}/{per-category-hash}.bin
 - Expire based on {category}

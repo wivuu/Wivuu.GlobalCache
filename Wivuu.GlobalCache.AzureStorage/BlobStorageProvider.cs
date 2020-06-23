@@ -76,8 +76,8 @@ namespace Wivuu.GlobalCache.AzureStorage
         }
 
         public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id,
-                                                   Func<Stream, Task<T>>? onRead,
-                                                   Func<Stream, Task<T>>? onWrite,
+                                                   Func<Stream, Task<T>>? onRead = default,
+                                                   Func<Stream, Task<T>>? onWrite = default,
                                                    CancellationToken cancellationToken = default)
         {
             var path   = IdToString(id);
