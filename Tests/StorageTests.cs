@@ -212,14 +212,14 @@ namespace Tests
         }
         
         [Fact]
-        public async Task TestGetOrCreateBlob4()
+        public async Task TestGetOrCreateBlob3()
         {
-            var azStore = new BlobStorageProvider4(new StorageSettings
+            var azStore = new BlobStorageProvider3(new StorageSettings
             {
                 ConnectionString = "UseDevelopmentStorage=true"
             });
 
-            var id     = new CacheIdentity("Test", 4);
+            var id     = new CacheIdentity("Test", 3);
             var str    = "hello world" + Guid.NewGuid();
             var writes = 0;
 

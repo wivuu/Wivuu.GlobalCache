@@ -10,9 +10,9 @@ using Azure.Storage.Blobs.Specialized;
 
 namespace Wivuu.GlobalCache.AzureStorage
 {
-    public class BlobStorageProvider4 : IStorageProvider
+    public class BlobStorageProvider3 : IStorageProvider
     {
-        public BlobStorageProvider4(StorageSettings settings)
+        public BlobStorageProvider3(StorageSettings settings)
         {
             if (settings.ConnectionString == null)
                 throw new ArgumentNullException($"{nameof(BlobStorageProvider)} requires a connection string");
