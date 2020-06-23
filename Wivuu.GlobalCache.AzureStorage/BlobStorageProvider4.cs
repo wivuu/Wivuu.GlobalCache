@@ -32,10 +32,12 @@ namespace Wivuu.GlobalCache.AzureStorage
         private static string IdToString(CacheIdentity id) =>
             $"{id.Category}/{id.Hashcode}.dat";
         
-        private async Task<AsyncDisposable?> EnterWrite(BlobClient lockFile, string path)
+        private async Task<AsyncDisposable?> EnterWrite(string path)
         {
             try
             {
+                var lockFile = ContainerClient.GetBlobClient(path + ".lock");
+
                 await lockFile
                     .UploadAsync(Stream.Null, conditions: new BlobRequestConditions { IfNoneMatch = ETag.All })
                     .ConfigureAwait(false);
@@ -62,18 +64,18 @@ namespace Wivuu.GlobalCache.AzureStorage
         
         public async Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
         {
-            var path       = IdToString(id);
-            var client     = ContainerClient.GetBlobClient(path);
-            var lockClient = ContainerClient.GetBlobClient(path + ".lock");
+            var path   = IdToString(id);
+            var client = ContainerClient.GetBlobClient(path);
+
+            // TODO: Should we check for a lock?
 
             await client.DeleteIfExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id, ReaderWriterHandle<T> handle, CancellationToken cancellationToken = default)
         {
-            var path       = IdToString(id);
-            var client     = ContainerClient.GetBlobClient(path);
-            var lockClient = ContainerClient.GetBlobClient(path + ".lock");
+            var path   = IdToString(id);
+            var client = ContainerClient.GetBlobClient(path);
 
             using var retries = new RetryHelper(1, 30, totalMaxDelay: LeaseTimeout);
 
@@ -118,7 +120,7 @@ namespace Wivuu.GlobalCache.AzureStorage
                     var pipe = new Pipe();
 
                     // Create lock
-                    if (!(await EnterWrite(lockClient, path).ConfigureAwait(false) is IAsyncDisposable disposable))
+                    if (!(await EnterWrite(path).ConfigureAwait(false) is IAsyncDisposable disposable))
                         // Unable to enter write
                         continue;
 
