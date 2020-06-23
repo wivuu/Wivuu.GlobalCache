@@ -31,6 +31,9 @@ namespace Wivuu.GlobalCache.AzureStorage
         static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
         static string IdToString(CacheIdentity id) => $"{id.Category}/{id.Hashcode}.dat";
+
+        public Task EnsureContainerAsync() =>
+            ContainerClient.CreateIfNotExistsAsync();
         
         private async Task<AsyncDisposable?> EnterWrite(string path)
         {

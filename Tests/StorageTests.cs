@@ -20,6 +20,8 @@ namespace Tests
                 ConnectionString = "UseDevelopmentStorage=true"
             });
 
+            await azStore.EnsureContainerAsync();
+
             var id     = new CacheIdentity("Test", 1);
             var str    = "hello world" + Guid.NewGuid();
             var writes = 0;
@@ -50,7 +52,7 @@ namespace Tests
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
             });
-            
+
             await azStore.RemoveAsync(id);
 
             async Task<string> GetOrCreateAsync() => 
