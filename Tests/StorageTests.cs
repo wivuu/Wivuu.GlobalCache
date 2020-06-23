@@ -11,36 +11,48 @@ namespace Tests
 {
     public class StorageTests
     {
-        [Fact]
-        public Task TestFileSystemStorage()
+        [Theory]
+        [InlineData(typeof(BlobStorageProvider))]
+        [InlineData(typeof(FileStorageProvider))]
+        public async Task TestStorageConcurrence(Type storageProviderType)
         {
-            return Task.CompletedTask;
-        }
+            IStorageProvider store;
 
-        [Fact]
-        public async Task TestAzureBlobStorage()
-        {
-            var azStore = new BlobStorageProvider(new StorageSettings
+            switch (storageProviderType.Name)
             {
-                ConnectionString = "UseDevelopmentStorage=true"
-            });
+                case nameof(BlobStorageProvider):
+                    var azStore = new BlobStorageProvider(new StorageSettings
+                    {
+                        ConnectionString = "UseDevelopmentStorage=true"
+                    });
+                    
+                    await azStore.EnsureContainerAsync();
 
-            await azStore.EnsureContainerAsync();
+                    store = azStore;
+                    break;
+
+                case nameof(FileStorageProvider):
+                    store = new FileStorageProvider(new FileStorageSettings());
+                    break;
+
+                default:
+                    throw new NotSupportedException($"{nameof(storageProviderType)} is not supported");
+            }
 
             var id     = new CacheIdentity("Test", 1);
             var str    = "hello world" + Guid.NewGuid();
             var writes = 0;
 
-            await azStore.RemoveAsync(id);
+            await store.RemoveAsync(id);
 
             await Task.WhenAll(new []
             {
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
-                azStore.RemoveAsync(id),
+                store.RemoveAsync(id),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
-                azStore.RemoveAsync(id),
+                store.RemoveAsync(id),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
@@ -58,10 +70,10 @@ namespace Tests
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
             });
 
-            await azStore.RemoveAsync(id);
+            // await store.RemoveAsync(id);
 
             async Task<string> GetOrCreateAsync() => 
-                await azStore.OpenReadWriteAsync(
+                await store.OpenReadWriteAsync(
                     id,
                     onWrite: async stream =>
                     {

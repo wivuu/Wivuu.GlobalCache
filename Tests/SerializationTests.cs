@@ -32,25 +32,43 @@ namespace Tests
         }
 
         [Theory]
-        [InlineData(typeof(JsonSerializationProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer))]
-        public async Task TestAzureSerializers(Type serializerType)
+        [InlineData(typeof(JsonSerializationProvider), typeof(BlobStorageProvider))]
+        [InlineData(typeof(JsonSerializationProvider), typeof(FileStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer), typeof(BlobStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer), typeof(FileStorageProvider))]
+        public async Task TestStoreSerializers(Type serializerType, Type storageProviderType)
         {
+            IStorageProvider store;
+
             if (!(Activator.CreateInstance(serializerType) is ISerializationProvider serializer))
                 throw new Exception($"{serializerType} is not a serialization provider");
-
-            var azStore = new BlobStorageProvider(new StorageSettings
+                
+            switch (storageProviderType.Name)
             {
-                ConnectionString = "UseDevelopmentStorage=true"
-            });
+                case nameof(BlobStorageProvider):
+                    var azStore = new BlobStorageProvider(new StorageSettings
+                    {
+                        ConnectionString = "UseDevelopmentStorage=true"
+                    });
+                    
+                    await azStore.EnsureContainerAsync();
 
-            await azStore.EnsureContainerAsync();
+                    store = azStore;
+                    break;
+
+                case nameof(FileStorageProvider):
+                    store = new FileStorageProvider(new FileStorageSettings());
+                    break;
+
+                default:
+                    throw new NotSupportedException($"{nameof(storageProviderType)} is not supported");
+            }
 
             var id = new CacheIdentity(serializerType.Name, 5);
-            await azStore.RemoveAsync(id);
+            await store.RemoveAsync(id);
 
             // Write data
-            var written = await azStore.OpenReadWriteAsync(id, onWrite: async stream =>
+            var written = await store.OpenReadWriteAsync(id, onWrite: async stream =>
             {
                 // Open database and query data
                 var items = new List<string>();
@@ -67,7 +85,7 @@ namespace Tests
             Assert.NotEmpty(written);
 
             // Read data
-            var read = await azStore.OpenReadWriteAsync(id, onRead: async stream =>
+            var read = await store.OpenReadWriteAsync(id, onRead: async stream =>
                 await serializer.DeserializeFromStreamAsync<List<string>>(stream)
             );
 

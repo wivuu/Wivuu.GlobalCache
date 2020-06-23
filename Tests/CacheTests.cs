@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Wivuu.GlobalCache;
+using Wivuu.GlobalCache.AzureStorage;
 using Xunit;
 
 namespace Tests
@@ -10,6 +11,19 @@ namespace Tests
         public CacheTests()
         {
             var collection = new ServiceCollection();
+
+            collection.AddSingleton<IGlobalCache>(service =>
+            {
+                return new DefaultGlobalCache(new GlobalCacheSettings());
+            });
+
+            // collection.AddScoped<IStorageProvider>(services =>
+            // {
+            //     return new BlobStorageProvider(new StorageSettings
+            //     {
+            //         ConnectionString = "UseDevelopmentStorage=true"
+            //     });
+            // });
 
             Services = collection.BuildServiceProvider();
         }

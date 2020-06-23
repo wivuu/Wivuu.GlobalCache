@@ -2,6 +2,8 @@ namespace Wivuu.GlobalCache
 {
     public class GlobalCacheSettings
     {
-        ISerializationProvider DefaultSerializationProvider { get; set; } = new JsonSerializationProvider();
+        public ISerializationProvider? DefaultSerializationProvider { get; set; } 
+
+        public IStorageProvider? DefaultStorageProvider { get; set; } 
     }
 }
