@@ -53,12 +53,28 @@ namespace Wivuu.GlobalCache.AzureStorage
                 {
                     var response = await lockFile.GetPropertiesAsync();
 
-                    return response.Value.LeaseState == LeaseState.Leased;
+                    // If the lock file does exist, but its lease is expired or broken
+                    // delete the lock
+                    if (response.Value.LeaseState == LeaseState.Expired ||
+                        response.Value.LeaseState == LeaseState.Broken)
+                    {
+                        await lockFile.DeleteIfExistsAsync(conditions: new BlobRequestConditions
+                        {
+                            IfMatch = response.Value.ETag
+                        });
+
+                        return false;
+                    }
+
+                    return true;
                 }
                 catch (RequestFailedException e)
                 {
                     if (e.Status == 404)
                         return false;
+
+                    if (e.Status == 409)
+                        return true;
 
                     throw;
                 }
@@ -185,6 +201,27 @@ namespace Wivuu.GlobalCache.AzureStorage
             while (!cancellationToken.IsCancellationRequested && await retries.DelayAsync());
 
             throw new Exception("Failed to read write stuff");
+        }
+    }
+
+    public class ReaderWriterHandle<TResult>
+    {
+        internal ReadCallback? Reader { get; private set; }
+        internal WriteCallback? Writer { get; private set; }
+
+        public delegate Task<TResult> ReadCallback(Stream stream);
+        public delegate Task<TResult> WriteCallback(Stream stream);
+
+        public ReaderWriterHandle<TResult> OnRead(ReadCallback reader)
+        {
+            this.Reader = reader;
+            return this;
+        }
+
+        public ReaderWriterHandle<TResult> OnWrite(WriteCallback writer)
+        {
+            this.Writer = writer;
+            return this;
         }
     }
 }
