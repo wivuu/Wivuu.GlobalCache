@@ -1,4 +1,6 @@
+using System;
 using System.Threading.Tasks;
+using Azure.Storage.Blobs;
 using Microsoft.Extensions.DependencyInjection;
 using Wivuu.GlobalCache;
 using Wivuu.GlobalCache.AzureStorage;
@@ -8,41 +10,61 @@ namespace Tests
 {
     public class CacheTests
     {
-        public CacheTests()
+        [Theory]
+        [InlineData(typeof(JsonSerializationProvider), typeof(BlobStorageProvider))]
+        [InlineData(typeof(JsonSerializationProvider), typeof(FileStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer), typeof(BlobStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer), typeof(FileStorageProvider))]
+        public async Task TestGeneralCaching(Type serializerType, Type storageProviderType)
         {
-            var collection = new ServiceCollection();
-
-            collection.AddSingleton<IGlobalCache>(service =>
+            IServiceProvider services;
             {
-                return new DefaultGlobalCache(new GlobalCacheSettings());
-            });
+                var collection = new ServiceCollection();
 
-            // collection.AddScoped<IStorageProvider>(services =>
-            // {
-            //     return new BlobStorageProvider(new StorageSettings
-            //     {
-            //         ConnectionString = "UseDevelopmentStorage=true"
-            //     });
-            // });
+                collection.AddWivuuGlobalCache(settings =>
+                {
+                    if (!(Activator.CreateInstance(serializerType) is ISerializationProvider serializer))
+                        throw new Exception($"{serializerType} is not a serialization provider");
 
-            Services = collection.BuildServiceProvider();
-        }
+                    settings.DefaultSerializationProvider = serializer;
+                        
+                    switch (storageProviderType.Name)
+                    {
+                        case nameof(BlobStorageProvider):
+                            var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true");
+                            var container = blobServiceClient.GetBlobContainerClient("globalcache");
+                            container.CreateIfNotExists();
 
-        public ServiceProvider Services { get; }
+                            settings.DefaultStorageProvider = new BlobStorageProvider(container);
+                            break;
 
-        [Fact]
-        public async Task TestGeneralCaching()
-        {
-            using var scope = Services.CreateScope();
+                        case nameof(FileStorageProvider):
+                            settings.DefaultStorageProvider = new FileStorageProvider(new FileStorageSettings());
+                            break;
 
-            var cache = scope.ServiceProvider.GetRequiredService<IGlobalCache>();
+                        default:
+                            throw new NotSupportedException($"{nameof(storageProviderType)} is not supported");
+                    }
+                });
 
-            var item = await cache.GetOrCreateAsync(new CacheIdentity("Test", 0), () =>
+                services = collection.BuildServiceProvider();
+            }
+
+            using (var scope = services.CreateScope())
             {
-                return Task.FromResult(0);
-            });
+                var cache = scope.ServiceProvider.GetRequiredService<IGlobalCache>();
+                
+                // Remove item
+                await cache.InvalidateAsync(CacheIdentity.ForCategory("cachetest"));
 
-            Assert.Equal(0, item);
+                // Get or create item
+                var item = await cache.GetOrCreateAsync(new CacheIdentity("cachetest", 0), () =>
+                {
+                    return Task.FromResult(new { Item = 5 });
+                });
+
+                Assert.Equal(5, item.Item);
+            }
         }
     }
 }

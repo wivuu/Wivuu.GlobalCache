@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Azure.Storage.Blobs;
 using Wivuu.GlobalCache;
 using Wivuu.GlobalCache.AzureStorage;
 using Xunit;
@@ -29,14 +30,11 @@ namespace Tests
             switch (storageProviderType.Name)
             {
                 case nameof(BlobStorageProvider):
-                    var azStore = new BlobStorageProvider(new StorageSettings
-                    {
-                        ConnectionString = "UseDevelopmentStorage=true"
-                    });
-                    
-                    await azStore.EnsureContainerAsync();
-
-                    store = azStore;
+                    var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true");
+                    var container = blobServiceClient.GetBlobContainerClient("globalcache");
+                    await container.CreateIfNotExistsAsync();
+                
+                    store = new BlobStorageProvider(container);
                     break;
 
                 case nameof(FileStorageProvider):
@@ -47,7 +45,7 @@ namespace Tests
                     throw new NotSupportedException($"{nameof(storageProviderType)} is not supported");
             }
 
-            var id     = new CacheIdentity("Test", 1);
+            var id     = new CacheIdentity("concurrence", 1);
             var str    = "hello world" + Guid.NewGuid();
             var writes = 0;
 
@@ -110,14 +108,11 @@ namespace Tests
             switch (storageProviderType.Name)
             {
                 case nameof(BlobStorageProvider):
-                    var azStore = new BlobStorageProvider(new StorageSettings
-                    {
-                        ConnectionString = "UseDevelopmentStorage=true"
-                    });
-                    
-                    await azStore.EnsureContainerAsync();
+                    var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true");
+                    var container = blobServiceClient.GetBlobContainerClient("globalcache");
+                    await container.CreateIfNotExistsAsync();
 
-                    store = azStore;
+                    store = new BlobStorageProvider(container);
                     break;
 
                 case nameof(FileStorageProvider):

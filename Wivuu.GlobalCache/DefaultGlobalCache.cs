@@ -1,16 +1,17 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 
 namespace Wivuu.GlobalCache
 {
     public class DefaultGlobalCache : IGlobalCache
     {
-        public DefaultGlobalCache(GlobalCacheSettings settings)
+        public DefaultGlobalCache(IOptions<GlobalCacheSettings> settings)
         {
-            Settings              = settings;
-            SerializationProvider = settings.DefaultSerializationProvider ?? new JsonSerializationProvider();
-            StorageProvider       = settings.DefaultStorageProvider ?? new FileStorageProvider(new FileStorageSettings());
+            Settings              = settings.Value;
+            SerializationProvider = Settings.DefaultSerializationProvider ?? new JsonSerializationProvider();
+            StorageProvider       = Settings.DefaultStorageProvider ?? new FileStorageProvider(new FileStorageSettings());
         }
 
         public GlobalCacheSettings Settings { get; }

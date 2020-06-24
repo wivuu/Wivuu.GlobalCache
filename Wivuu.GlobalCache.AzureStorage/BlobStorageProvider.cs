@@ -13,19 +13,13 @@ namespace Wivuu.GlobalCache.AzureStorage
 {
     public class BlobStorageProvider : IStorageProvider
     {
-        public BlobStorageProvider(StorageSettings settings)
+        public BlobStorageProvider(BlobContainerClient container)
         {
-            if (settings.ConnectionString == null)
-                throw new ArgumentNullException($"{nameof(BlobStorageProvider)} requires a connection string");
+            if (container == null)
+                throw new ArgumentNullException($"{nameof(container)} is required to operate");
 
-            this.Settings = settings;
-
-            var blobServiceClient = new BlobServiceClient(settings.ConnectionString);
-
-            this.ContainerClient = blobServiceClient.GetBlobContainerClient(settings.ContainerName);
+            this.ContainerClient = container;
         }
-
-        protected StorageSettings Settings { get; }
 
         protected BlobContainerClient ContainerClient { get; }
 
@@ -35,9 +29,6 @@ namespace Wivuu.GlobalCache.AzureStorage
             id.IsCategory
             ? id.ToString()
             : $"{id}.dat";
-
-        public Task EnsureContainerAsync() =>
-            ContainerClient.CreateIfNotExistsAsync();
 
         private async Task<AsyncDisposable?> EnterWrite(string path)
         {

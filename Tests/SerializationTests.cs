@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Azure.Storage.Blobs;
 using Wivuu.GlobalCache;
 using Wivuu.GlobalCache.AzureStorage;
 using Xunit;
@@ -46,14 +47,11 @@ namespace Tests
             switch (storageProviderType.Name)
             {
                 case nameof(BlobStorageProvider):
-                    var azStore = new BlobStorageProvider(new StorageSettings
-                    {
-                        ConnectionString = "UseDevelopmentStorage=true"
-                    });
-                    
-                    await azStore.EnsureContainerAsync();
+                    var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true");
+                    var container = blobServiceClient.GetBlobContainerClient("globalcache");
+                    await container.CreateIfNotExistsAsync();
 
-                    store = azStore;
+                    store = new BlobStorageProvider(container);
                     break;
 
                 case nameof(FileStorageProvider):
