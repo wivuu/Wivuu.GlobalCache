@@ -39,7 +39,7 @@ namespace Wivuu.GlobalCache
             Hashcode = key switch
             {
                 null             => 0,
-                string keyString => GetStableHashCode(keyString),
+                string keyString => GetStringHashCode(keyString),
                 _                => key.GetHashCode()
             };
         }
@@ -69,7 +69,7 @@ namespace Wivuu.GlobalCache
         /// <summary>
         /// Get stable hash for input string
         /// </summary>
-        static int GetStableHashCode(string str)
+        public static int GetStringHashCode(string str)
         {
             unchecked
             {
