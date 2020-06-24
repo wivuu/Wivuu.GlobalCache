@@ -1,5 +1,5 @@
 # Wivuu.GlobalCache
-![Tests](https://github.com/wivuu/Wivuu.GlobalCache/workflows/Tests/badge.svg)
+[![Tests](https://github.com/wivuu/Wivuu.GlobalCache/workflows/Tests/badge.svg)](https://github.com/wivuu/Wivuu.GlobalCache/actions?query=workflow%3ATests)
 
 The GlobalCache library endeavors to provide a cheap and effortless way to host a distributed caching mechanism.
 
