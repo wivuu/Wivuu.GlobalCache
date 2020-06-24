@@ -1,4 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../Wivuu.GlobalCache.proj" />
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <PackageId>Wivuu.GlobalCache.BinarySerializer</PackageId>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Wivuu.GlobalCache\Wivuu.GlobalCache.csproj" />
@@ -7,11 +15,5 @@
   <ItemGroup>
     <PackageReference Include="MessagePack" Version="2.1.143" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
-  </PropertyGroup>
 
 </Project>

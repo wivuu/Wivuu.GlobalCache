@@ -21,7 +21,10 @@ Using azure blob storage provider you can utilize Premium Block Blob to get cons
 This library can be installed via NuGet:
 
 ```sh
-dotnet add package Wivuu.GlobalCache # Install core lib; includes filesystem adapter & JSON serializer
+# Install the core library; includes filesystem adapter & JSON serializer
+dotnet add package Wivuu.GlobalCache 
+
+# Or install the azure storage adapter directly
 dotnet add package Wivuu.GlobalCache.AzureStorage # Install Azure Storage adapter
 dotnet add package Wivuu.GlobalCache.BinarySerializer # Install Binary Serialization adapter
 ```
