@@ -13,8 +13,8 @@ namespace Tests
         [Theory]
         [InlineData(typeof(JsonSerializationProvider), typeof(BlobStorageProvider))]
         [InlineData(typeof(JsonSerializationProvider), typeof(FileStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer), typeof(BlobStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer), typeof(FileStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider), typeof(BlobStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider), typeof(FileStorageProvider))]
         public async Task TestGeneralCaching(Type serializerType, Type storageProviderType)
         {
             IServiceProvider services;
@@ -26,20 +26,21 @@ namespace Tests
                     if (!(Activator.CreateInstance(serializerType) is ISerializationProvider serializer))
                         throw new Exception($"{serializerType} is not a serialization provider");
 
-                    settings.DefaultSerializationProvider = serializer;
+                    settings.SerializationProvider = serializer;
                         
                     switch (storageProviderType.Name)
                     {
                         case nameof(BlobStorageProvider):
                             var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true");
-                            var container = blobServiceClient.GetBlobContainerClient("globalcache");
+                            var container         = blobServiceClient.GetBlobContainerClient("globalcache");
+
                             container.CreateIfNotExists();
 
-                            settings.DefaultStorageProvider = new BlobStorageProvider(container);
+                            settings.StorageProvider = new BlobStorageProvider(container);
                             break;
 
                         case nameof(FileStorageProvider):
-                            settings.DefaultStorageProvider = new FileStorageProvider(new FileStorageSettings());
+                            settings.StorageProvider = new FileStorageProvider();
                             break;
 
                         default:
@@ -55,10 +56,10 @@ namespace Tests
                 var cache = scope.ServiceProvider.GetRequiredService<IGlobalCache>();
                 
                 // Remove item
-                await cache.InvalidateAsync(CacheIdentity.ForCategory("cachetest"));
+                await cache.InvalidateAsync(CacheId.ForCategory("cachetest"));
 
                 // Get or create item
-                var item = await cache.GetOrCreateAsync(new CacheIdentity("cachetest", 0), () =>
+                var item = await cache.GetOrCreateAsync(new CacheId("cachetest", 0), () =>
                 {
                     return Task.FromResult(new { Item = 5 });
                 });

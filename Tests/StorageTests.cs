@@ -38,14 +38,14 @@ namespace Tests
                     break;
 
                 case nameof(FileStorageProvider):
-                    store = new FileStorageProvider(new FileStorageSettings());
+                    store = new FileStorageProvider();
                     break;
 
                 default:
                     throw new NotSupportedException($"{nameof(storageProviderType)} is not supported");
             }
 
-            var id     = new CacheIdentity("concurrence", 1);
+            var id     = new CacheId("concurrence", 1);
             var str    = "hello world" + Guid.NewGuid();
             var writes = 0;
 
@@ -116,15 +116,15 @@ namespace Tests
                     break;
 
                 case nameof(FileStorageProvider):
-                    store = new FileStorageProvider(new FileStorageSettings());
+                    store = new FileStorageProvider();
                     break;
 
                 default:
                     throw new NotSupportedException($"{nameof(storageProviderType)} is not supported");
             }
 
-            var id1 = new CacheIdentity("remove", 1);
-            var id2 = new CacheIdentity("remove", 2);
+            var id1 = new CacheId("remove", 1);
+            var id2 = new CacheId("remove", 2);
 
             // Write two values
             var val1 = await store.OpenReadWriteAsync(id1, onWrite: stream => {
@@ -145,10 +145,10 @@ namespace Tests
             Assert.Equal(val2, await store.OpenReadWriteAsync(id2, onRead: stream => Task.FromResult(stream.ReadByte())));
 
             // Clear ALL values
-            Assert.True(await store.RemoveAsync(CacheIdentity.ForCategory("remove")), "id1 and id2 should have been removed");
+            Assert.True(await store.RemoveAsync(CacheId.ForCategory("remove")), "id1 and id2 should have been removed");
             await CheckRemoved(id2, 2);
 
-            async Task CheckRemoved(CacheIdentity id, byte notExpected)
+            async Task CheckRemoved(CacheId id, byte notExpected)
             {
                 try
                 {

@@ -13,6 +13,10 @@ namespace Wivuu.GlobalCache.AzureStorage
 {
     public class BlobStorageProvider : IStorageProvider
     {
+        /// <summary>
+        /// Blob storage provider which utilizes leases to coordinate concurrent readers and writers
+        /// </summary>
+        /// <param name="container">The blob container to store cached items in</param>
         public BlobStorageProvider(BlobContainerClient container)
         {
             if (container == null)
@@ -25,7 +29,7 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
-        static string IdToString(CacheIdentity id) =>
+        static string IdToString(CacheId id) =>
             id.IsCategory
             ? id.ToString()
             : $"{id}.dat";
@@ -60,7 +64,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             }
         }
 
-        public async Task<bool> RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
+        public async Task<bool> RemoveAsync(CacheId id, CancellationToken cancellationToken = default)
         {
             if (id.IsCategory)
             {
@@ -100,7 +104,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             }
         }
 
-        public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id,
+        public async Task<T> OpenReadWriteAsync<T>(CacheId id,
                                                    Func<Stream, Task<T>>? onRead = default,
                                                    Func<Stream, Task<T>>? onWrite = default,
                                                    CancellationToken cancellationToken = default)

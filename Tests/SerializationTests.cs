@@ -13,7 +13,7 @@ namespace Tests
     {
         [Theory]
         [InlineData(typeof(JsonSerializationProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider))]
         public async Task TestSerializer(Type serializerType)
         {
             if (!(Activator.CreateInstance(serializerType) is ISerializationProvider serializer))
@@ -35,8 +35,8 @@ namespace Tests
         [Theory]
         [InlineData(typeof(JsonSerializationProvider), typeof(BlobStorageProvider))]
         [InlineData(typeof(JsonSerializationProvider), typeof(FileStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer), typeof(BlobStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.Serializer), typeof(FileStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider), typeof(BlobStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider), typeof(FileStorageProvider))]
         public async Task TestStoreSerializers(Type serializerType, Type storageProviderType)
         {
             IStorageProvider store;
@@ -55,14 +55,14 @@ namespace Tests
                     break;
 
                 case nameof(FileStorageProvider):
-                    store = new FileStorageProvider(new FileStorageSettings());
+                    store = new FileStorageProvider();
                     break;
 
                 default:
                     throw new NotSupportedException($"{nameof(storageProviderType)} is not supported");
             }
 
-            var id = new CacheIdentity(serializerType.Name, 5);
+            var id = new CacheId(serializerType.Name, 5);
             await store.RemoveAsync(id);
 
             // Write data

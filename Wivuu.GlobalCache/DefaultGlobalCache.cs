@@ -10,15 +10,17 @@ namespace Wivuu.GlobalCache
         public DefaultGlobalCache(IOptions<GlobalCacheSettings> settings)
         {
             Settings              = settings.Value;
-            SerializationProvider = Settings.DefaultSerializationProvider ?? new JsonSerializationProvider();
-            StorageProvider       = Settings.DefaultStorageProvider ?? new FileStorageProvider(new FileStorageSettings());
+            SerializationProvider = Settings.SerializationProvider ?? new JsonSerializationProvider();
+            StorageProvider       = Settings.StorageProvider ?? new FileStorageProvider();
         }
 
-        public GlobalCacheSettings Settings { get; }
-        public ISerializationProvider SerializationProvider { get; }
-        public IStorageProvider StorageProvider { get; }
+        protected GlobalCacheSettings Settings { get; }
+        
+        protected ISerializationProvider SerializationProvider { get; }
+        
+        protected IStorageProvider StorageProvider { get; }
 
-        public Task CreateAsync<T>(CacheIdentity id, Func<Task<T>> generator, CancellationToken cancellationToken = default) => 
+        public Task CreateAsync<T>(CacheId id, Func<Task<T>> generator, CancellationToken cancellationToken = default) => 
             StorageProvider.OpenReadWriteAsync<T>(
                 id,
                 onWrite: async stream =>
@@ -32,7 +34,7 @@ namespace Wivuu.GlobalCache
                 },
                 cancellationToken: cancellationToken);
 
-        public Task<T> GetAsync<T>(CacheIdentity id, CancellationToken cancellationToken = default) => 
+        public Task<T> GetAsync<T>(CacheId id, CancellationToken cancellationToken = default) => 
             StorageProvider.OpenReadWriteAsync<T>(
                 id,
                 onRead: stream =>
@@ -40,7 +42,7 @@ namespace Wivuu.GlobalCache
                     SerializationProvider.DeserializeFromStreamAsync<T>(stream, cancellationToken),
                 cancellationToken: cancellationToken);
 
-        public Task<T> GetOrCreateAsync<T>(CacheIdentity id, Func<Task<T>> generator, CancellationToken cancellationToken = default) =>
+        public Task<T> GetOrCreateAsync<T>(CacheId id, Func<Task<T>> generator, CancellationToken cancellationToken = default) =>
             StorageProvider.OpenReadWriteAsync<T>(
                 id,
                 onRead: stream =>
@@ -57,7 +59,7 @@ namespace Wivuu.GlobalCache
                 },
                 cancellationToken: cancellationToken);
 
-        public Task InvalidateAsync(CacheIdentity id, CancellationToken cancellationToken = default) =>
+        public Task InvalidateAsync(CacheId id, CancellationToken cancellationToken = default) =>
             StorageProvider.RemoveAsync(id, cancellationToken);
     }
 }

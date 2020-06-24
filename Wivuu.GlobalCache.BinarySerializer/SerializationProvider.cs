@@ -5,7 +5,10 @@ using MessagePack;
 
 namespace Wivuu.GlobalCache.BinarySerializer
 {
-    public class Serializer : ISerializationProvider
+    /// <summary>
+    /// Binary serialization provider based on MessagePack format
+    /// </summary>
+    public class SerializationProvider : ISerializationProvider
     {
         public async Task<T> DeserializeFromStreamAsync<T>(Stream input, CancellationToken cancellationToken = default)
         {

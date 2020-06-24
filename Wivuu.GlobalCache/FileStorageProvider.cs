@@ -6,19 +6,23 @@ using System.Threading.Tasks;
 
 namespace Wivuu.GlobalCache
 {
-    public class FileStorageProvider : IStorageProvider
+    internal class FileStorageProvider : IStorageProvider
     {
-        public FileStorageProvider(FileStorageSettings settings)
+        /// <summary>
+        /// File storage provider
+        /// </summary>
+        /// <param name="root">Directory to store cached items in</param>
+        public FileStorageProvider(string? root = default)
         {
-            this.Settings = settings;
+            Root = root ?? Environment.CurrentDirectory;
         }
-
-        public FileStorageSettings Settings { get; }
 
         static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
-        string IdToString(CacheIdentity id) =>
-            Path.Combine(Settings.Root, id.IsCategory ? id.ToString() : $"{id}.dat");
+        protected string Root { get; }
+
+        protected string IdToString(CacheId id) =>
+            Path.Combine(Root, id.IsCategory ? id.ToString() : $"{id}.dat");
 
         public void EnsureDirectory(string path)
         {
@@ -27,7 +31,7 @@ namespace Wivuu.GlobalCache
             Directory.CreateDirectory(dirName);
         }
 
-        public Task<bool> RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
+        public Task<bool> RemoveAsync(CacheId id, CancellationToken cancellationToken = default)
         {
             var path = IdToString(id);
 
@@ -60,7 +64,7 @@ namespace Wivuu.GlobalCache
             }
         }
 
-        public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id,
+        public async Task<T> OpenReadWriteAsync<T>(CacheId id,
                                                    Func<Stream, Task<T>>? onRead = null,
                                                    Func<Stream, Task<T>>? onWrite = null,
                                                    CancellationToken cancellationToken = default)

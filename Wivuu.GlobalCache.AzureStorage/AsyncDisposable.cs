@@ -10,8 +10,8 @@ namespace Wivuu.GlobalCache.AzureStorage
             Done = done;
         }
 
-        public static IAsyncDisposable CompletedTask { get; } 
-            = new AsyncDisposable(() => Task.CompletedTask);
+        public static IAsyncDisposable CompletedTask { get; } = 
+            new AsyncDisposable(() => Task.CompletedTask);
 
         public Func<Task> Done { get; }
 
