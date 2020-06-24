@@ -12,6 +12,6 @@ namespace Wivuu.GlobalCache
                                       Func<Stream, Task<T>>? onWrite = default,
                                       CancellationToken cancellationToken = default);
 
-        Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default);
+        Task<bool> RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default);
     }
 }

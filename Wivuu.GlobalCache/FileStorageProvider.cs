@@ -17,7 +17,8 @@ namespace Wivuu.GlobalCache
 
         static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
-        string IdToString(CacheIdentity id) => Path.Combine(Settings.Root, $"{id.Category}/{id.Hashcode}.dat");
+        string IdToString(CacheIdentity id) =>
+            Path.Combine(Settings.Root, id.IsCategory ? id.ToString() : $"{id}.dat");
 
         public void EnsureDirectory(string path)
         {
@@ -26,20 +27,37 @@ namespace Wivuu.GlobalCache
             Directory.CreateDirectory(dirName);
         }
 
-        public Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
+        public Task<bool> RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
         {
             var path = IdToString(id);
 
-            try
+            if (id.IsCategory)
             {
-                File.Delete(path);
-            }
-            catch (IOException)
-            {
-                // noop
-            }
+                try
+                {
+                    Directory.Delete(path, true);
 
-            return Task.CompletedTask;
+                    return Task.FromResult(true);
+                }
+                catch (IOException)
+                {
+                    return Task.FromResult(false);
+                }
+            }
+            else
+            {
+
+                try
+                {
+                    File.Delete(path);
+                    return Task.FromResult(true);
+                }
+                catch (IOException)
+                {
+                    // noop
+                    return Task.FromResult(false);
+                }
+            }
         }
 
         public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id,
@@ -51,7 +69,7 @@ namespace Wivuu.GlobalCache
 
             EnsureDirectory(path);
 
-            using var retries = new RetryHelper(1, 30, totalMaxDelay: LeaseTimeout);
+            using var retries = new RetryHelper(1, 500, totalMaxDelay: LeaseTimeout);
 
             // Wait for break in traffic
             do
@@ -67,8 +85,8 @@ namespace Wivuu.GlobalCache
                         using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         using var writerStream = pipe.Writer.AsStream(true);
 
-                        var readerTask = onRead(pipe.Reader.AsStream(true));
-                        
+                        var readerTask = Task.Run(() => onRead(pipe.Reader.AsStream(true)));
+
                         await Task.WhenAll(
                             readerTask
                                 .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
@@ -98,7 +116,7 @@ namespace Wivuu.GlobalCache
                     using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     using var readerStream = pipe.Reader.AsStream(true);
 
-                    var writerTask = onWrite(pipe.Writer.AsStream(true));
+                    var writerTask = Task.Run(() => onWrite(pipe.Writer.AsStream(true)));
 
                     await Task.WhenAll(
                         writerTask
@@ -107,7 +125,7 @@ namespace Wivuu.GlobalCache
                             .CopyToAsync(fileStream)
                             .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException()))
                     );
-                    
+
                     if (writerTask.IsCompletedSuccessfully)
                         return writerTask.Result;
                 }

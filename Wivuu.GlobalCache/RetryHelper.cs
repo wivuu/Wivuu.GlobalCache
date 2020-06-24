@@ -17,7 +17,7 @@ namespace Wivuu.GlobalCache
                 
                 while (true)
                 {
-                    var proposed = Math.Min((int)Math.Pow(2, tries) + initialDelay, maxDelay);
+                    var proposed = Math.Max(0, Math.Min((int)Math.Pow(2, tries) + initialDelay, maxDelay));
                     var wiggle   = random.Next(0, 5);
 
                     yield return proposed + wiggle;
@@ -27,11 +27,11 @@ namespace Wivuu.GlobalCache
                 }
             }
 
-            this.TotalMaxDelay = totalMaxDelay;
+            this.Deadline = DateTimeOffset.UtcNow + totalMaxDelay;
         }
 
         private TimeSpan TotalDelay { get; set; }
-        private TimeSpan? TotalMaxDelay { get; }
+        private DateTimeOffset? Deadline { get; }
         private IEnumerator<int> DelayEnumerator { get; }
 
         public async Task<bool> DelayAsync()
@@ -41,11 +41,12 @@ namespace Wivuu.GlobalCache
 
             var delay = this.DelayEnumerator.Current;
 
-            if (delay > 0)
+            if (delay == 1)
+                await Task.Yield();
+            else if (delay > 1)
                 await Task.Delay(delay).ConfigureAwait(false);
 
-            TotalDelay += TimeSpan.FromMilliseconds(delay);
-            if (TotalDelay > TotalMaxDelay)
+            if (DateTimeOffset.UtcNow > Deadline)
                 return false;
 
             return true;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
@@ -25,16 +26,19 @@ namespace Wivuu.GlobalCache.AzureStorage
         }
 
         protected StorageSettings Settings { get; }
-        
+
         protected BlobContainerClient ContainerClient { get; }
 
         static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
-        static string IdToString(CacheIdentity id) => $"{id.Category}/{id.Hashcode}.dat";
+        static string IdToString(CacheIdentity id) =>
+            id.IsCategory
+            ? id.ToString()
+            : $"{id}.dat";
 
         public Task EnsureContainerAsync() =>
             ContainerClient.CreateIfNotExistsAsync();
-        
+
         private async Task<AsyncDisposable?> EnterWrite(string path)
         {
             try
@@ -49,7 +53,7 @@ namespace Wivuu.GlobalCache.AzureStorage
 
                 await leaseClient.AcquireAsync(LeaseTimeout).ConfigureAwait(false);
 
-                return new AsyncDisposable(async () => 
+                return new AsyncDisposable(async () =>
                 {
                     await lockFile
                         .DeleteIfExistsAsync(conditions: new BlobRequestConditions { LeaseId = leaseClient.LeaseId })
@@ -64,15 +68,45 @@ namespace Wivuu.GlobalCache.AzureStorage
                 throw;
             }
         }
-        
-        public async Task RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
+
+        public async Task<bool> RemoveAsync(CacheIdentity id, CancellationToken cancellationToken = default)
         {
-            var path   = IdToString(id);
-            var client = ContainerClient.GetBlobClient(path);
+            if (id.IsCategory)
+            {
+                // Delete all blobs in category
+                var blobs = ContainerClient.GetBlobsAsync(
+                    states: BlobStates.None,
+                    prefix: id.ToString(),
+                    cancellationToken: cancellationToken
+                );
 
-            // TODO: Should we check for a lock?
+                var delete = new List<Task<bool>>();
 
-            await client.DeleteIfExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+                await foreach (var blobMeta in blobs)
+                {
+                    if (!blobMeta.Deleted)
+                    {
+                        var blob = ContainerClient.GetBlobClient(blobMeta.Name);
+
+                        delete.Add(
+                            blob.DeleteIfExistsAsync(cancellationToken: cancellationToken)
+                                .ContinueWith(t => t.IsCompletedSuccessfully ? true : false)
+                        );
+                    }
+                }
+
+                var all = await Task.WhenAll(delete).ConfigureAwait(false);
+
+                return delete.Count == 0 || delete.TrueForAll(t => t.Result);
+            }
+            else
+            {
+                var path   = IdToString(id);
+                var client = ContainerClient.GetBlobClient(path);
+                var result = await client.DeleteIfExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                return result.Value;
+            }
         }
 
         public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id,
@@ -83,7 +117,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             var path   = IdToString(id);
             var client = ContainerClient.GetBlobClient(path);
 
-            using var retries = new RetryHelper(1, 30, totalMaxDelay: LeaseTimeout);
+            using var retries = new RetryHelper(1, 500, totalMaxDelay: LeaseTimeout);
 
             // Wait for break in traffic
             do
@@ -98,8 +132,8 @@ namespace Wivuu.GlobalCache.AzureStorage
                         using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         using var writerStream = pipe.Writer.AsStream(true);
 
-                        var readerTask = onRead(pipe.Reader.AsStream(true));
-                        
+                        var readerTask = Task.Run(() => onRead(pipe.Reader.AsStream(true)));
+
                         await Task.WhenAll(
                             readerTask
                                 .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
@@ -136,8 +170,8 @@ namespace Wivuu.GlobalCache.AzureStorage
                         using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         using var readerStream = pipe.Reader.AsStream(true);
 
-                        var writerTask = onWrite(pipe.Writer.AsStream(true));
-                        
+                        var writerTask = Task.Run(() => onWrite(pipe.Writer.AsStream(true)));
+
                         await Task.WhenAll(
                             writerTask
                                 .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException())),

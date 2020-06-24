@@ -57,6 +57,6 @@ namespace Wivuu.GlobalCache
                 cancellationToken: cancellationToken);
 
         public Task InvalidateAsync(CacheIdentity id, CancellationToken cancellationToken = default) =>
-                StorageProvider.RemoveAsync(id, cancellationToken);
+            StorageProvider.RemoveAsync(id, cancellationToken);
     }
 }
