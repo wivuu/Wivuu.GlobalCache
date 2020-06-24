@@ -1,11 +1,19 @@
 # Wivuu.GlobalCache
 
-[Description]
+The GlobalCache library endeavors to provide a cheap and effortless way to host a distributed caching mechanism.
+
+This is a great fit if:
+- You want to keep costs down by avoiding use of VMs or services like Redis.
+- The API surface area is sufficient for your needs (GetOrCreate and Invalidate).
+- You write to/update a datasource infrequently, but querying and aggregating data out is common and CPU/memory/database intensive; simply call `InvalidateAsync` on the cache whenever a write happens and then `GetOrCreate` in the distributed consumer so that the aggregation logic only happens once per write.
 
 ## TODO
 - Create github actions to publish releases
 - Create nuget packages / publishing process
 - Support IAsyncEnumerable in storage providers and global cache to stream data from storage
+
+## Azure Blob Storage
+Using azure blob storage provider you can utilize Premium Block Blob to get consistent low latency, datacenter local cache that can be shared across many instances of your application or even by Azure Functions. You can configure Lifecycle Management on your container to automatically expire categories of cached item and detect changes to your cache using the change feed or azure function blob triggers. 
 
 ## Installation
 
