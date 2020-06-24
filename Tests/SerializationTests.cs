@@ -13,7 +13,7 @@ namespace Tests
     {
         [Theory]
         [InlineData(typeof(JsonSerializationProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider))]
         public async Task TestSerializer(Type serializerType)
         {
             if (!(Activator.CreateInstance(serializerType) is ISerializationProvider serializer))
@@ -35,8 +35,8 @@ namespace Tests
         [Theory]
         [InlineData(typeof(JsonSerializationProvider), typeof(BlobStorageProvider))]
         [InlineData(typeof(JsonSerializationProvider), typeof(FileStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider), typeof(BlobStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider), typeof(FileStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider), typeof(BlobStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider), typeof(FileStorageProvider))]
         public async Task TestStoreSerializers(Type serializerType, Type storageProviderType)
         {
             IStorageProvider store;

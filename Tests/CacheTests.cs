@@ -13,8 +13,8 @@ namespace Tests
         [Theory]
         [InlineData(typeof(JsonSerializationProvider), typeof(BlobStorageProvider))]
         [InlineData(typeof(JsonSerializationProvider), typeof(FileStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider), typeof(BlobStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.SerializationProvider), typeof(FileStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider), typeof(BlobStorageProvider))]
+        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider), typeof(FileStorageProvider))]
         public async Task TestGeneralCaching(Type serializerType, Type storageProviderType)
         {
             IServiceProvider services;
@@ -59,7 +59,7 @@ namespace Tests
                 await cache.InvalidateAsync(CacheId.ForCategory("cachetest"));
 
                 // Get or create item
-                var item = await cache.GetOrCreateAsync(new CacheId("cachetest", 0), () =>
+                var item = await cache.GetOrCreateAsync(new CacheId("cachetest", "item5"), () =>
                 {
                     return Task.FromResult(new { Item = 5 });
                 });

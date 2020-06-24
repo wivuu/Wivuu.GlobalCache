@@ -8,7 +8,7 @@ namespace Wivuu.GlobalCache.BinarySerializer
     /// <summary>
     /// Binary serialization provider based on MessagePack format
     /// </summary>
-    public class SerializationProvider : ISerializationProvider
+    public class BinarySerializationProvider : ISerializationProvider
     {
         public async Task<T> DeserializeFromStreamAsync<T>(Stream input, CancellationToken cancellationToken = default)
         {
