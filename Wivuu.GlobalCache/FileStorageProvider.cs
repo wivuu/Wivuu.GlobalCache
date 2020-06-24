@@ -61,10 +61,13 @@ namespace Wivuu.GlobalCache
         }
 
         public async Task<T> OpenReadWriteAsync<T>(CacheIdentity id,
-                                             Func<Stream, Task<T>>? onRead = null,
-                                             Func<Stream, Task<T>>? onWrite = null,
-                                             CancellationToken cancellationToken = default)
+                                                   Func<Stream, Task<T>>? onRead = null,
+                                                   Func<Stream, Task<T>>? onWrite = null,
+                                                   CancellationToken cancellationToken = default)
         {
+            if (id.IsCategory)
+                throw new ArgumentException("Cannot read/write to a category");
+
             var path = IdToString(id);
 
             EnsureDirectory(path);

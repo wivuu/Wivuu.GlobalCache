@@ -150,7 +150,7 @@ namespace Tests
             Assert.Equal(val2, await store.OpenReadWriteAsync(id2, onRead: stream => Task.FromResult(stream.ReadByte())));
 
             // Clear ALL values
-            Assert.True(await store.RemoveAsync(new CacheIdentity("remove")), "id1 and id2 should have been removed");
+            Assert.True(await store.RemoveAsync(CacheIdentity.ForCategory("remove")), "id1 and id2 should have been removed");
             await CheckRemoved(id2, 2);
 
             async Task CheckRemoved(CacheIdentity id, byte notExpected)
