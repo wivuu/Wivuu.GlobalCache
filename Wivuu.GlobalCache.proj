@@ -1,7 +1,7 @@
 <Project>
 
     <PropertyGroup>
-        <VersionPrefix>0.1.1</VersionPrefix>
+        <VersionPrefix>0.1.2</VersionPrefix>
         <VersionSuffix>beta</VersionSuffix>
         <Authors>Erik O'Leary</Authors>
         <Company>Wivuu</Company>
@@ -15,6 +15,8 @@
         <PackageLicenseUrl>https://raw.githubusercontent.com/wivuu/Wivuu.GlobalCache/master/LICENSE</PackageLicenseUrl>
         <RepositoryUrl>https://github.com/wivuu/Wivuu.GlobalCache.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
 
 </Project>
