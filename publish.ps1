@@ -1,6 +1,5 @@
 param(
-    [string]$key,
-    [string]$version
+    [string]$key
 )
 
 function publish ($path) {
@@ -8,10 +7,15 @@ function publish ($path) {
 
     Write-Host "Publish $file ..."
 
-    dotnet nuget push $file --source "github"
+    if ($key) {
+        dotnet nuget push $file --source "nuget" -k $key --skip-duplicate
+    }
+    else {
+        dotnet nuget push $file --source "nuget" --skip-duplicate
+    }
 }
 
-dotnet pack --configuration Release /p:version=$version
+dotnet pack --configuration Release
 
 publish .\Wivuu.GlobalCache\bin\Release\*.nupkg
 publish .\Wivuu.GlobalCache.AzureStorage\bin\Release\*.nupkg
