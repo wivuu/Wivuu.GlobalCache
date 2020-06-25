@@ -69,8 +69,11 @@ namespace Wivuu.GlobalCache
         /// <summary>
         /// Get stable hash for input string
         /// </summary>
-        public static int GetStringHashCode(string str)
+        public static int GetStringHashCode(string? str)
         {
+            if (str is null)
+                return 0;
+                
             unchecked
             {
                 var hash1 = 5381;
