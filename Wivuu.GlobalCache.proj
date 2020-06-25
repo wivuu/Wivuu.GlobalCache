@@ -12,6 +12,7 @@
         </ReleaseNotes>
         <PackageTags>caching;azure</PackageTags>
         <PackageProjectUrl>https://github.com/wivuu/Wivuu.GlobalCache</PackageProjectUrl>
+        <PackageLicenseUrl>https://raw.githubusercontent.com/wivuu/Wivuu.GlobalCache/master/LICENSE</PackageLicenseUrl>
         <RepositoryUrl>https://github.com/wivuu/Wivuu.GlobalCache.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
