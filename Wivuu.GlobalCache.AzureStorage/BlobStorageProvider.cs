@@ -68,6 +68,8 @@ namespace Wivuu.GlobalCache.AzureStorage
         {
             if (id.IsCategory)
             {
+                // TODO: use blob batch operations, Azure.Storage.Blobs.Batch
+
                 // Delete all blobs in category
                 var blobs = ContainerClient.GetBlobsAsync(
                     states: BlobStates.None,
@@ -81,10 +83,8 @@ namespace Wivuu.GlobalCache.AzureStorage
                 {
                     if (!blobMeta.Deleted)
                     {
-                        var blob = ContainerClient.GetBlobClient(blobMeta.Name);
-
                         delete.Add(
-                            blob.DeleteIfExistsAsync(cancellationToken: cancellationToken)
+                            ContainerClient.DeleteBlobIfExistsAsync(blobMeta.Name, cancellationToken: cancellationToken)
                                 .ContinueWith(t => t.IsCompletedSuccessfully ? true : false)
                         );
                     }
@@ -97,8 +97,9 @@ namespace Wivuu.GlobalCache.AzureStorage
             else
             {
                 var path   = IdToString(id);
-                var client = ContainerClient.GetBlobClient(path);
-                var result = await client.DeleteIfExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+                var result = await ContainerClient
+                    .DeleteBlobIfExistsAsync(path, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
 
                 return result.Value;
             }
@@ -151,13 +152,13 @@ namespace Wivuu.GlobalCache.AzureStorage
                 // Try to WRITE file
                 if (onWrite != null)
                 {
-                    // Create a new pipe
-                    var pipe = new Pipe();
-
                     // Create lock
                     if (!(await EnterWrite(path).ConfigureAwait(false) is IAsyncDisposable disposable))
                         // Unable to enter write
                         continue;
+
+                    // Create a new pipe
+                    var pipe = new Pipe();
 
                     // Upload file
                     try
