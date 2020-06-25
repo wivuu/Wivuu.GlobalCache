@@ -12,6 +12,10 @@ This is a great fit if:
 - The API surface area is sufficient for your needs (GetOrCreate and Invalidate).
 - You write to/update a datasource infrequently, but querying and aggregating data out is common and CPU/memory/database intensive; simply call `InvalidateAsync` on the cache whenever a write happens and then `GetOrCreate` in the distributed consumer so that the aggregation logic only happens once per write.
 
+![](images/2020-06-25-10-24-55.png)
+
+*The above sample demonstrates pulling data from the database and processing it (above the red line) vs. downloading pre-cached 100kb from premium blob storage (below the red line)*
+
 ## TODO
 - Create github actions to publish releases
 - Create nuget packages / publishing process
