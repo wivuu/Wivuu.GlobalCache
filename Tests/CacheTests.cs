@@ -11,10 +11,10 @@ namespace Tests
     public class CacheTests
     {
         [Theory]
-        [InlineData(typeof(JsonSerializationProvider), typeof(BlobStorageProvider))]
-        [InlineData(typeof(JsonSerializationProvider), typeof(FileStorageProvider))]
+        // [InlineData(typeof(JsonSerializationProvider), typeof(BlobStorageProvider))]
+        // [InlineData(typeof(JsonSerializationProvider), typeof(FileStorageProvider))]
         [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider), typeof(BlobStorageProvider))]
-        [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider), typeof(FileStorageProvider))]
+        // [InlineData(typeof(Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider), typeof(FileStorageProvider))]
         public async Task TestGeneralCaching(Type serializerType, Type storageProviderType)
         {
             IServiceProvider services;

@@ -1,5 +1,5 @@
 param(
-    [string]$key
+    [string]$key = ""
 )
 
 function publish ($path) {

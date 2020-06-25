@@ -130,22 +130,21 @@ namespace Wivuu.GlobalCache.AzureStorage
 
                         var readerTask = Task.Run(() => onRead(pipe.Reader.AsStream(true)));
 
-                        await Task.WhenAll(
-                            readerTask
-                                .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
-                            client
-                                .DownloadToAsync(writerStream, cancellationToken: cts.Token)
-                                .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
-                        ).ConfigureAwait(false);
+                        await client.DownloadToAsync(writerStream, cancellationToken: cts.Token);
+                        pipe.Writer.Complete();
 
-                        if (readerTask.IsCompletedSuccessfully)
-                            return readerTask.Result;
+                        return await readerTask;
                     }
                     catch (RequestFailedException e)
                     {
-                        // Throw if error is not 404
+                        pipe.Writer.Complete(e);
+
                         if (e.Status != 404)
                             throw;
+                    }
+                    catch (Exception e)
+                    {
+                        pipe.Writer.Complete(e);
                     }
                 }
 
@@ -170,7 +169,11 @@ namespace Wivuu.GlobalCache.AzureStorage
 
                         await Task.WhenAll(
                             writerTask
-                                .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException())),
+                                .ContinueWith(t => 
+                                {
+                                    pipe.Writer.Complete(t.Exception?.GetBaseException());
+                                    return t.Result;
+                                }),
                             client
                                 .UploadAsync(readerStream, cancellationToken: cts.Token)
                                 .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException()))

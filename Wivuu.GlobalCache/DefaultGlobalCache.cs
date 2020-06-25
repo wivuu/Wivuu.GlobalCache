@@ -28,7 +28,7 @@ namespace Wivuu.GlobalCache
                     var data = await generator().ConfigureAwait(false);
 
                     // Write to stream
-                    _ = SerializationProvider.SerializeToStreamAsync(data, stream, cancellationToken);
+                    await SerializationProvider.SerializeToStreamAsync(data, stream, cancellationToken);
 
                     return data;
                 },
@@ -53,7 +53,7 @@ namespace Wivuu.GlobalCache
                     var data = await generator().ConfigureAwait(false);
 
                     // Write to stream
-                    _ = SerializationProvider.SerializeToStreamAsync(data, stream, cancellationToken);
+                    await SerializationProvider.SerializeToStreamAsync(data, stream, cancellationToken);
 
                     return data;
                 },
