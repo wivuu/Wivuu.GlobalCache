@@ -1,5 +1,6 @@
 # Wivuu.GlobalCache
 [![Tests](https://github.com/wivuu/Wivuu.GlobalCache/workflows/Tests/badge.svg)](https://github.com/wivuu/Wivuu.GlobalCache/actions?query=workflow%3ATests)
+
 [![wivuu.globalcache](https://img.shields.io/nuget/v/wivuu.globalcache.svg?label=wivuu.globalcache)](https://www.nuget.org/packages/Wivuu.GlobalCache/)
 [![wivuu.globalcache.AzureStorage](https://img.shields.io/nuget/v/wivuu.globalcache.azurestorage.svg?label=wivuu.globalcache.azurestorage)](https://www.nuget.org/packages/Wivuu.GlobalCache.AzureStorage)
 [![wivuu.globalcache.BinarySerializer](https://img.shields.io/nuget/v/wivuu.globalcache.binaryserializer.svg?label=wivuu.globalcache.binaryserializer)](https://www.nuget.org/packages/Wivuu.GlobalCache.BinarySerializer)
