@@ -17,15 +17,17 @@ namespace Wivuu.GlobalCache.AzureStorage
         /// Blob storage provider which utilizes leases to coordinate concurrent readers and writers
         /// </summary>
         /// <param name="container">The blob container to store cached items in</param>
-        public BlobStorageProvider(BlobContainerClient container)
+        public BlobStorageProvider(BlobContainerClient container, BlobBatchClient? batchClient = default)
         {
             if (container == null)
                 throw new ArgumentNullException($"{nameof(container)} is required to operate");
 
             this.ContainerClient = container;
+            this.BatchClient     = batchClient;
         }
 
         protected BlobContainerClient ContainerClient { get; }
+        protected BlobBatchClient? BatchClient { get; }
 
         static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
@@ -66,17 +68,52 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         public async Task<bool> RemoveAsync(CacheId id, CancellationToken cancellationToken = default)
         {
-            if (id.IsCategory)
+            var path = IdToString(id);
+
+            var blobs = ContainerClient.GetBlobsAsync(
+                states: BlobStates.None,
+                prefix: path,
+                cancellationToken: cancellationToken
+            );
+
+            if (this.BatchClient is BlobBatchClient batchClient)
             {
-                // TODO: use blob batch operations, Azure.Storage.Blobs.Batch
+                await using var asyncEnumerator = blobs.GetAsyncEnumerator(cancellationToken);
 
-                // Delete all blobs in category
-                var blobs = ContainerClient.GetBlobsAsync(
-                    states: BlobStates.None,
-                    prefix: id.ToString(),
-                    cancellationToken: cancellationToken
-                );
+                var keepGoing = true;
+                var removed   = 0;
 
+                do
+                {
+                    using var batch = batchClient.CreateBatch();
+
+                    while (keepGoing = await asyncEnumerator.MoveNextAsync())
+                    {
+                        batch.DeleteBlob(ContainerClient.Name,
+                            blobName: asyncEnumerator.Current.Name,
+                            snapshotsOption: DeleteSnapshotsOption.IncludeSnapshots);
+
+                        if (batch.RequestCount == 256)
+                            break;
+                    }
+
+                    if (batch.RequestCount > 0)
+                    {
+                        var result = await batchClient
+                            .SubmitBatchAsync(batch,
+                                throwOnAnyFailure: false,
+                                cancellationToken: cancellationToken)
+                            .ConfigureAwait(false);
+
+                        removed += batch.RequestCount;
+                    }
+                }
+                while (keepGoing);
+
+                return removed != 0;
+            }
+            else
+            {
                 var delete = new List<Task<bool>>();
 
                 await foreach (var blobMeta in blobs)
@@ -84,7 +121,10 @@ namespace Wivuu.GlobalCache.AzureStorage
                     if (!blobMeta.Deleted)
                     {
                         delete.Add(
-                            ContainerClient.DeleteBlobIfExistsAsync(blobMeta.Name, cancellationToken: cancellationToken)
+                            ContainerClient
+                                .DeleteBlobIfExistsAsync(blobMeta.Name,
+                                    snapshotsOption: DeleteSnapshotsOption.IncludeSnapshots,
+                                    cancellationToken: cancellationToken)
                                 .ContinueWith(t => t.IsCompletedSuccessfully ? true : false)
                         );
                     }
@@ -93,15 +133,6 @@ namespace Wivuu.GlobalCache.AzureStorage
                 var all = await Task.WhenAll(delete).ConfigureAwait(false);
 
                 return delete.Count == 0 || delete.TrueForAll(t => t.Result);
-            }
-            else
-            {
-                var path   = IdToString(id);
-                var result = await ContainerClient
-                    .DeleteBlobIfExistsAsync(path, cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-
-                return result.Value;
             }
         }
 
@@ -169,7 +200,7 @@ namespace Wivuu.GlobalCache.AzureStorage
 
                         await Task.WhenAll(
                             writerTask
-                                .ContinueWith(t => 
+                                .ContinueWith(t =>
                                 {
                                     pipe.Writer.Complete(t.Exception?.GetBaseException());
                                     return t.Result;
