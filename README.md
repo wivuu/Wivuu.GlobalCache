@@ -21,7 +21,6 @@ This is a great fit if:
 - Create github actions to publish releases
 - Create nuget packages / publishing process
 - Support IAsyncEnumerable in storage providers and global cache to stream data from storage
-- Allow raw storage and response, for example if you store as JSON and an ASPNET response is JSON, you could avoid an extra deserialize/serialize step by storing in UTF8 JSON and returning that directly to the client
 
 ## Azure Blob Storage
 Using azure blob storage provider you can utilize Premium Block Blob to get consistent low latency, datacenter local cache that can be shared across many instances of your application or even by Azure Functions. You can configure Lifecycle Management on your container to automatically expire categories of cached item and detect changes to your cache using the change feed or azure function blob triggers. 
