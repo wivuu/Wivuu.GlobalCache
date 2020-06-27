@@ -6,7 +6,7 @@ namespace Microsoft.Extensions.DependencyInjection
     public static class GlobalCacheExtensions
     {
         /// <summary>
-        /// Adds global distributed caching mechanism into DI
+        /// Adds global distributed access caching mechanism into DI
         /// </summary>
         /// <param name="collection">The service collection being built</param>
         /// <param name="configure">Optionally configure global cache settings</param>
