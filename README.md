@@ -17,13 +17,9 @@ This is a great fit if:
 
 *The above sample demonstrates pulling data from the database and processing it (above the red line) vs. downloading pre-cached 100kb from premium blob storage (below the red line)*
 
-## TODO
-- Create github actions to publish releases
-- Create nuget packages / publishing process
-- Support IAsyncEnumerable in storage providers and global cache to stream data from storage
-- Add scripts/helpers/templates to help deployment of azure blob storage to house caching
-- Add more extensions to ease utilizing azure blob storage
-- Look into automatic caching of ASP.NET core responses using middleware + attributes
+## Progress
+- [View board](https://github.com/wivuu/Wivuu.GlobalCache/projects/1)
+- [View issues](https://github.com/wivuu/Wivuu.GlobalCache/issues)
 
 ## Azure Blob Storage
 Using azure blob storage provider you can utilize Premium Block Blob to get consistent low latency, datacenter local cache that can be shared across many instances of your application or even by Azure Functions. You can configure Lifecycle Management on your container to automatically expire categories of cached item and detect changes to your cache using the change feed or azure function blob triggers. 
