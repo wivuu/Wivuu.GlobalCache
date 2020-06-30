@@ -123,12 +123,16 @@ namespace Tests
 
                 await cache.InvalidateAsync(CacheId.ForCategory("rawtest"));
 
-                await TryReadWrite();
-                await TryReadWrite();
-                await TryReadWrite();
-                await TryRead();
-                await TryRead();
-                await TryRead();
+                for (var i = 0; i < 10; ++i)
+                {
+                    await TryReadWrite();
+                    await TryReadWrite();
+                    await TryReadWrite();
+                    await TryRead();
+                    await TryRead();
+                    await TryRead();
+                }
+                
                 Assert.Equal(1, writes);
                 
                 async Task TryWrite()
@@ -140,7 +144,6 @@ namespace Tests
                         await cache.SerializationProvider.SerializeToStreamAsync(new TestItem { Item = value }, stream)
                     );
                 }
-                
 
                 async Task TryReadWrite()
                 {
