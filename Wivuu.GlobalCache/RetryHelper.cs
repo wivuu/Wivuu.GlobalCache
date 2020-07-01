@@ -1,60 +1,46 @@
 using System;
-using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Wivuu.GlobalCache
 {
-    internal class RetryHelper : IDisposable
+    internal class RetryHelper
     {
         public RetryHelper(int initialDelay = 500,
                            int maxDelay = 5_000,
                            int? maxTries = null,
                            TimeSpan? totalMaxDelay = null)
         {
-            this.DelayEnumerator = Delays().GetEnumerator();
-
-            IEnumerable<int> Delays()
-            {
-                var random = new Random();
-                var tries  = 0;
-                
-                while (true)
-                {
-                    var proposed = Math.Max(0, Math.Min((int)Math.Pow(2, tries) + initialDelay, maxDelay));
-                    var wiggle   = random.Next(0, 5);
-
-                    yield return proposed + wiggle;
-
-                    if (tries++ > maxTries == true)
-                        yield break;
-                }
-            }
-
-            this.Deadline = DateTimeOffset.UtcNow + totalMaxDelay;
+            this.deadline      = DateTimeOffset.UtcNow + totalMaxDelay;
+            this.initialDelay  = initialDelay;
+            this.maxDelay      = maxDelay;
+            this.maxTries      = maxTries;
+            this.totalMaxDelay = totalMaxDelay;
         }
 
-        private DateTimeOffset? Deadline { get; }
+        private int tries = 0;
+        private readonly DateTimeOffset? deadline;
+        private readonly int initialDelay;
+        private readonly int maxDelay;
+        private readonly int? maxTries;
+        private readonly TimeSpan? totalMaxDelay;
+        private readonly Random random = new Random();
 
-        private IEnumerator<int> DelayEnumerator { get; }
-
-        public async Task<bool> DelayAsync()
+        public async Task<bool> DelayAsync(CancellationToken cancellationToken = default)
         {
-            if (this.DelayEnumerator.MoveNext() == false)
+            if (tries >= maxTries == true || DateTimeOffset.UtcNow > deadline)
                 return false;
 
-            var delay = this.DelayEnumerator.Current;
+            var proposed = Math.Min((2 << tries++) + initialDelay, maxDelay);
+            var wiggle   = random.Next(0, 3);
+            var wait     = proposed + wiggle;
 
-            if (delay == 1)
+            if (wait < 2)
                 await Task.Yield();
-            else if (delay > 1)
-                await Task.Delay(delay).ConfigureAwait(false);
-
-            if (DateTimeOffset.UtcNow > Deadline)
-                return false;
+            else
+                await Task.Delay(wait, cancellationToken);
 
             return true;
         }
-
-        public void Dispose() => DelayEnumerator.Dispose();
     }
 }

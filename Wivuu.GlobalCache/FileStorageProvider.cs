@@ -76,7 +76,7 @@ namespace Wivuu.GlobalCache
 
             EnsureDirectory(path);
 
-            using var retries = new RetryHelper(1, 500, totalMaxDelay: LeaseTimeout);
+            var retries = new RetryHelper(1, 500, totalMaxDelay: LeaseTimeout);
 
             // Wait for break in traffic
             do
@@ -137,7 +137,7 @@ namespace Wivuu.GlobalCache
                         return writerTask.Result;
                 }
 
-                if (await retries.DelayAsync().ConfigureAwait(false) == false)
+                if (await retries.DelayAsync(cancellationToken).ConfigureAwait(false) == false)
                     throw new TimeoutException();
             }
             while (!cancellationToken.IsCancellationRequested);

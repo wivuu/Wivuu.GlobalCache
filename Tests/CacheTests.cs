@@ -110,6 +110,7 @@ namespace Tests
                 services = collection.BuildServiceProvider();
             }
 
+            for (var i = 0; i < 10; ++i)
             using (var scope = services.CreateScope())
             {
                 var cache = scope.ServiceProvider.GetRequiredService<IGlobalCache>();
@@ -123,15 +124,12 @@ namespace Tests
 
                 await cache.InvalidateAsync(CacheId.ForCategory("rawtest"));
 
-                for (var i = 0; i < 10; ++i)
-                {
-                    await TryReadWrite();
-                    await TryReadWrite();
-                    await TryReadWrite();
-                    await TryRead();
-                    await TryRead();
-                    await TryRead();
-                }
+                await TryReadWrite();
+                await TryReadWrite();
+                await TryReadWrite();
+                await TryRead();
+                await TryRead();
+                await TryRead();
                 
                 Assert.Equal(1, writes);
                 
