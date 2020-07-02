@@ -14,9 +14,18 @@ namespace Microsoft.Extensions.DependencyInjection
                                                              Action<GlobalCacheSettings>? configure = default)
         {
             if (configure != null)
-                collection.Configure<GlobalCacheSettings>(configure);
+                collection.Configure<GlobalCacheSettings>(settings =>
+                {
+                    configure(settings);
+                    
+                    if (!(settings.StorageProvider is null))
+                        collection.AddSingleton<IStorageProvider>(settings.StorageProvider);
+                });
             else
+            {
+                collection.AddSingleton<IStorageProvider, FileStorageProvider>();
                 collection.Configure<GlobalCacheSettings>(settings => {});
+            }
 
             collection.AddSingleton<IGlobalCache, DefaultGlobalCache>();
 
