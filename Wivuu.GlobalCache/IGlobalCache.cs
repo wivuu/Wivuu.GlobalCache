@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 [assembly: InternalsVisibleTo("Wivuu.GlobalCache.AzureStorage")]
 [assembly: InternalsVisibleTo("Wivuu.GlobalCache.BinarySerializer")]
 [assembly: InternalsVisibleTo("Tests")]
-[assembly: InternalsVisibleTo("Benchmarks")]
 
 namespace Wivuu.GlobalCache
 {
