@@ -17,6 +17,17 @@ namespace Web
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddMvcCore();
+
+            services.AddWivuuGlobalCache(options =>
+            {
+                var connString = "UseDevelopmentStorage=true";
+                    
+                var container = new Azure.Storage.Blobs.BlobContainerClient(connString, "samplecache");
+                container.CreateIfNotExists();
+
+                options.StorageProvider       = new Wivuu.GlobalCache.AzureStorage.BlobStorageProvider(container);
+                options.SerializationProvider = new Wivuu.GlobalCache.BinarySerializer.BinarySerializationProvider();
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
