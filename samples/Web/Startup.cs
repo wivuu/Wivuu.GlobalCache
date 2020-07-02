@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Wivuu.GlobalCache;
 
 namespace Web
@@ -72,7 +73,7 @@ namespace Web
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
     public class GlobalCacheAttribute : 
         // ActionFilterAttribute
-        Attribute, IAsyncActionFilter, IResultFilter
+        Attribute, IAsyncActionFilter, IAsyncResultFilter
     {
         public GlobalCacheAttribute(string category)
         {
@@ -88,19 +89,22 @@ namespace Web
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            var cache = context.HttpContext.RequestServices.GetRequiredService<IGlobalCache>();
+            var httpContext = context.HttpContext;
+            var cache = httpContext.RequestServices.GetRequiredService<IGlobalCache>();
+            var logger = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
 
             // TODO: Build an ID based on request, attribute settings, and timestamp
-            var id               = new CacheId(Category, 0);
-            var httpContext      = context.HttpContext;
-            var originalResponse = httpContext.Features.Get<IHttpResponseBodyFeature>();
+            var id          = new CacheId(Category, 0);
 
-            using var outStream = await cache.GetOrCreateRawAsync(id, async stream =>
+            // TODO: Only execute if cached item is not present
             {
-                httpContext.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(stream));
+                // var ms = new MemoryStream();
+                // httpContext.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(ms));
 
                 await next();
-            });
+            }
+
+            // Otherwise replace with custom response
 
             // var response = context.HttpContext.Response;
 
@@ -111,24 +115,36 @@ namespace Web
 
             // using var writer = response.BodyWriter.AsStream();
             // await stream.CopyToAsync(writer, context.HttpContext.RequestAborted);
-
-            httpContext.Items.Add("TEST", outStream);
         }
 
-        public void OnResultExecuting(ResultExecutingContext context)
+        public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
         {
-        }
+            var httpContext = context.HttpContext;
+            var logger = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
 
-        public void OnResultExecuted(ResultExecutedContext context)
-        {
+            // If the item is cached
+            // if (false)
+            {
+                var originalResponse = httpContext.Features.Get<IHttpResponseBodyFeature>();
+                using var writer = originalResponse.Writer.AsStream();
+
+                var newResponse = new MyStreamResponseBodyFeature(writer);
+                httpContext.Features.Set<IHttpResponseBodyFeature>(newResponse);
+                
+                // 1. Serializes to configured output
+                await next();
+            }
+            // else
+            // {
+            //     await next();
+            // }
         }
     }
 
-    [Flags]
-    public enum GlobalCacheAttributeIdType
+    public class MyStreamResponseBodyFeature : StreamResponseBodyFeature
     {
-        Query   = 0b1,
-        Path    = 0b10,
-        Session = 0b100,
+        public MyStreamResponseBodyFeature(Stream stream) : base(stream)
+        {
+        }
     }
 }
