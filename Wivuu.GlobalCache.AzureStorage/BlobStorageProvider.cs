@@ -139,6 +139,77 @@ namespace Wivuu.GlobalCache.AzureStorage
             }
         }
 
+        public async Task<Stream?> TryOpenRead(CacheId id, CancellationToken cancellationToken = default)
+        {
+
+            var path   = IdToString(id);
+            var client = ContainerClient.GetBlobClient(path);
+            var pipe   = new Pipe();
+
+            // Read from blob storage
+            _ = Task.Run(async () =>
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+                try
+                {
+                    await client
+                        .DownloadToAsync(pipe.Writer.AsStream(leaveOpen: true), cancellationToken: cts.Token)
+                        .ConfigureAwait(false);
+
+                    pipe.Writer.Complete();
+                }
+                catch (Exception e)
+                {
+                    pipe.Writer.Complete(e);
+                }
+            });
+
+            // Create stream to buffer initial
+            var primed = new PrimedReadStream(pipe.Reader.AsStream(leaveOpen: false));
+
+            if (await primed.TryPrimeAsync())
+                return primed;
+
+            return null;
+        }
+
+        public async Task<Stream?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default)
+        {
+            var path   = IdToString(id);
+            var client = ContainerClient.GetBlobClient(path);
+            var pipe   = new Pipe();
+            
+            if (await EnterWrite(path) is IAsyncDisposable lease)
+            {
+                // Write to blob storage
+                _ = Task.Run(async () =>
+                {
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+                    try
+                    {
+                        await client
+                            .UploadAsync(pipe.Reader.AsStream(true), cts.Token)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception e)
+                    {
+                        pipe.Reader.Complete(e);
+                        throw;
+                    }
+                    finally
+                    {
+                        await lease.DisposeAsync();
+                    }
+                });
+
+                return pipe.Writer.AsStream(leaveOpen: false);
+            }
+
+            return null;
+        }
+
         public async Task<T> OpenReadWriteAsync<T>(CacheId id,
                                                    Func<Stream, Task<T>>? onRead = default,
                                                    Func<Stream, Task<T>>? onWrite = default,

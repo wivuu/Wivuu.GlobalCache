@@ -95,21 +95,22 @@ namespace Web
             var httpContext = context.HttpContext;
             var logger      = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
 
-            var settings = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
-
             // TODO: Build an ID based on request, attribute settings, and timestamp
             var id = new CacheId(Category, 0);
 
-            // Request buffered read stream from storage provider
-            //      - Buffered read stream reads & caches first page of data before proceeding, to ensure it is working
-            
-            // IF reader does not work
+            var settings = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
+            var storage  = settings.Value.StorageProvider as BlobStorageProvider;
+
+            // if reader works, set `context.Result` to a GlobalCacheObjectResult
+            if (await storage!.TryOpenRead(id, context.HttpContext.RequestAborted) is Stream stream)
+                context.Result = new GlobalCacheObjectResult(stream);
+            else
             {
+                context.HttpContext.Items.Add("GlobalCache:CacheId", id);
+
                 // Execute next and continue as normal
                 await next();
             }
-
-            // OTHERWISE if reader does work, override `context.Result` with an GlobalCacheObjectResult
         }
 
         public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
@@ -118,35 +119,42 @@ namespace Web
             var logger      = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
             
             // IF the response is a GlobalCacheObjectResult, continue as normal
-            {
+            if (context.Result is GlobalCacheObjectResult)
                 await next();
-            }
-
-            // OTHERWISE open an exclusive WRITE operation
-            // if (await storage.OpenExclusiveWrite() is var storageWriter)
+            else
             {
-                // Create a PersistentBodyFeature which relays to WRITE stream AND to 
-                // the original response writer
+                var settings = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
+                var storage  = settings.Value.StorageProvider as BlobStorageProvider;
 
-                // var responseWriter = httpContext.Features.Get<IHttpResponseBodyFeature>();
+                // OTHERWISE open an exclusive WRITE operation
+                // if (await storage.OpenExclusiveWrite() is var storageWriter)
+                if (context.HttpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id &&
+                    await storage!.TryOpenWrite(id, context.HttpContext.RequestAborted) is Stream storageStream)
+                {
+                    // Create a PersistentBodyFeature which relays to WRITE stream AND to 
+                    // the original response writer
+                    var responseWriter = httpContext.Features.Get<IHttpResponseBodyFeature>();
 
-                // httpContext.Features.Set<IHttpResponseBodyFeature>(
-                //     new PersistentBodyFeature(responseWriter, storageWriter)
-                // );
+                    using var multistream = new MultiplexWriteStream(
+                        responseWriter.Writer.AsStream(true), storageStream);
 
-                // Invoke NEXT
-                // try
-                //     await next();
-                // finally
-                //     storageWriter.Writer.Complete();
+                    httpContext.Features.Set<IHttpResponseBodyFeature>(
+                        new StreamResponseBodyFeature(multistream)
+                    );
+
+                    try 
+                    {
+                        // Invoke NEXT
+                        await next();
+                    }
+                    finally
+                    {
+                        storageStream.Dispose();
+                    }
+                }
+                else
+                    await next();
             }
-        }
-    }
-
-    public class PersistentBodyFeature : StreamResponseBodyFeature
-    {
-        public PersistentBodyFeature(Stream stream) : base(stream)
-        {
         }
     }
 
