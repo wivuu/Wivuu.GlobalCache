@@ -141,7 +141,6 @@ namespace Wivuu.GlobalCache.AzureStorage
 
         public async Task<Stream?> TryOpenRead(CacheId id, CancellationToken cancellationToken = default)
         {
-
             var path   = IdToString(id);
             var client = ContainerClient.GetBlobClient(path);
             var pipe   = new Pipe();
@@ -169,6 +168,9 @@ namespace Wivuu.GlobalCache.AzureStorage
             if (await primed.TryPrimeAsync())
                 return primed;
 
+            else
+                primed.Dispose();
+                
             return null;
         }
 
