@@ -154,13 +154,18 @@ namespace Wivuu.GlobalCache
             return Task.FromResult<Stream?>(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read));
         }
 
-        public Task<Stream?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default)
+        public Task<StreamWithCompletion?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default)
         {
             var path = IdToString(id);
 
             EnsureDirectory(path);
 
-            return Task.FromResult<Stream?>(new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None));
+            return Task.FromResult<StreamWithCompletion?>(
+                new StreamWithCompletion(
+                    new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None),
+                    Task.CompletedTask
+                )
+            );
         }
     }
 }

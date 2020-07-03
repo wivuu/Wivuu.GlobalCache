@@ -170,11 +170,11 @@ namespace Wivuu.GlobalCache.AzureStorage
 
             else
                 primed.Dispose();
-                
+
             return null;
         }
 
-        public async Task<Stream?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default)
+        public async Task<StreamWithCompletion?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default)
         {
             var path   = IdToString(id);
             var client = ContainerClient.GetBlobClient(path);
@@ -183,7 +183,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             if (await EnterWrite(path) is IAsyncDisposable lease)
             {
                 // Write to blob storage
-                _ = Task.Run(async () =>
+                var task = Task.Run(async () =>
                 {
                     try
                     {
@@ -202,7 +202,9 @@ namespace Wivuu.GlobalCache.AzureStorage
                     }
                 });
 
-                return pipe.Writer.AsStream(leaveOpen: false);
+                return new StreamWithCompletion(
+                    pipe.Writer.AsStream(leaveOpen: false), 
+                    task); 
             }
 
             return null;

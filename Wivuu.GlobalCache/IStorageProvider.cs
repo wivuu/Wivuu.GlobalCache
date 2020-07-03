@@ -42,6 +42,6 @@ namespace Wivuu.GlobalCache
         /// <param name="id">The global cache identity of the cached item</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Stream or null</returns>
-        Task<Stream?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default);
+        Task<StreamWithCompletion?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default);
     }
 }
