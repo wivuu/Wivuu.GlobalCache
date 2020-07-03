@@ -149,12 +149,10 @@ namespace Wivuu.GlobalCache.AzureStorage
             // Read from blob storage
             _ = Task.Run(async () =>
             {
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
                 try
                 {
                     await client
-                        .DownloadToAsync(pipe.Writer.AsStream(leaveOpen: true), cancellationToken: cts.Token)
+                        .DownloadToAsync(pipe.Writer.AsStream(leaveOpen: true), cancellationToken)
                         .ConfigureAwait(false);
 
                     pipe.Writer.Complete();
@@ -185,12 +183,10 @@ namespace Wivuu.GlobalCache.AzureStorage
                 // Write to blob storage
                 _ = Task.Run(async () =>
                 {
-                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
                     try
                     {
                         await client
-                            .UploadAsync(pipe.Reader.AsStream(true), cts.Token)
+                            .UploadAsync(pipe.Reader.AsStream(true), cancellationToken)
                             .ConfigureAwait(false);
                     }
                     catch (Exception e)
