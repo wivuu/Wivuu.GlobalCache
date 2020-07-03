@@ -9,10 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wivuu.GlobalCache;
-using Wivuu.GlobalCache.AzureStorage;
 
 namespace Web
 {
@@ -27,7 +25,7 @@ namespace Web
             services.AddWivuuGlobalCache(options =>
             {
                 var connString = "UseDevelopmentStorage=true";
-                    
+
                 var container = new Azure.Storage.Blobs.BlobContainerClient(connString, "samplecache");
                 container.CreateIfNotExists();
 
@@ -73,49 +71,45 @@ namespace Web
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            var httpContext = context.HttpContext;
-            var logger      = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
-
             // TODO: Build an ID based on request, attribute settings, and timestamp
             var id = new CacheId(Category, 0);
 
-            var settings = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
-            var storage  = settings.Value.StorageProvider as BlobStorageProvider;
+            var settings = context.HttpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
+            var storage  = settings.Value.StorageProvider;
 
             // if reader works, set `context.Result` to a GlobalCacheObjectResult
             if (await storage!.TryOpenRead(id, context.HttpContext.RequestAborted) is Stream stream)
                 context.Result = new GlobalCacheObjectResult(stream);
             else
             {
-                context.HttpContext.Items.Add("GlobalCache:CacheId", id);
-
                 // Execute next and continue as normal
                 await next();
+
+                context.HttpContext.Items.Add("GlobalCache:CacheId", id);
             }
         }
 
         public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
         {
             var httpContext = context.HttpContext;
-            var logger      = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
-            
+
             // IF the response is a GlobalCacheObjectResult, continue as normal
             if (context.Result is GlobalCacheObjectResult)
             {
-                context.HttpContext.Response.Headers["Content-Type"] = ContentType;
+                httpContext.Response.Headers["Content-Type"] = ContentType;
 
                 await next();
             }
             else
             {
                 var settings = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
-                var storage  = settings.Value.StorageProvider as BlobStorageProvider;
+                var storage  = settings.Value.StorageProvider;
 
                 // OTHERWISE open an exclusive WRITE operation
-                if (context.HttpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id &&
-                    await storage!.TryOpenWrite(id, context.HttpContext.RequestAborted) is Stream storageStream)
+                if (httpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id &&
+                    await storage!.TryOpenWrite(id, httpContext.RequestAborted) is Stream storageStream)
                 {
-                    // Create a PersistentBodyFeature which relays to WRITE stream AND to 
+                    // Create a PersistentBodyFeature which relays to WRITE stream AND to
                     // the original response writer
                     var responseWriter = httpContext.Features.Get<IHttpResponseBodyFeature>();
 
@@ -123,18 +117,9 @@ namespace Web
                         responseWriter.Writer.AsStream(true), storageStream);
 
                     httpContext.Features.Set<IHttpResponseBodyFeature>(
-                        new StreamResponseBodyFeature(multistream)
-                    );
+                        new StreamResponseBodyFeature(multistream));
 
-                    try 
-                    {
-                        // Invoke NEXT
-                        await next();
-                    }
-                    finally
-                    {
-                        storageStream.Dispose();
-                    }
+                    await next();
                 }
                 else
                     await next();
