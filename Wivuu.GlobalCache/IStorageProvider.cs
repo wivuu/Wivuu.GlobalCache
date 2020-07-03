@@ -27,5 +27,21 @@ namespace Wivuu.GlobalCache
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>True if 1 or more items were removed</returns>
         Task<bool> RemoveAsync(CacheId id, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Try to open a read stream in the underlying storage provider.
+        /// </summary>
+        /// <param name="id">The global cache identity of the cached item</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Stream or null</returns>
+        Task<Stream?> TryOpenRead(CacheId id, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Try to open a write stream in the underlying storage provider.
+        /// </summary>
+        /// <param name="id">The global cache identity of the cached item</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Stream or null</returns>
+        Task<Stream?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default);
     }
 }

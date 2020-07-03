@@ -144,5 +144,23 @@ namespace Wivuu.GlobalCache
 
             throw new TaskCanceledException();
         }
+
+        public Task<Stream?> TryOpenRead(CacheId id, CancellationToken cancellationToken = default)
+        {
+            var path = IdToString(id);
+
+            EnsureDirectory(path);
+
+            return Task.FromResult<Stream?>(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read));
+        }
+
+        public Task<Stream?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default)
+        {
+            var path = IdToString(id);
+
+            EnsureDirectory(path);
+
+            return Task.FromResult<Stream?>(new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None));
+        }
     }
 }
