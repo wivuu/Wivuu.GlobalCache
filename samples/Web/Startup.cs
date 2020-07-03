@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -12,7 +13,9 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Wivuu.GlobalCache;
+using Wivuu.GlobalCache.AzureStorage;
 
 namespace Web
 {
@@ -90,60 +93,66 @@ namespace Web
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
             var httpContext = context.HttpContext;
-            var cache = httpContext.RequestServices.GetRequiredService<IGlobalCache>();
-            var logger = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
+            var logger      = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
+
+            var settings = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
 
             // TODO: Build an ID based on request, attribute settings, and timestamp
-            var id          = new CacheId(Category, 0);
+            var id = new CacheId(Category, 0);
 
-            // TODO: Only execute if cached item is not present
+            // Request buffered read stream from storage provider
+            //      - Buffered read stream reads & caches first page of data before proceeding, to ensure it is working
+            
+            // IF reader does not work
             {
-                // var ms = new MemoryStream();
-                // httpContext.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(ms));
-
+                // Execute next and continue as normal
                 await next();
             }
 
-            // Otherwise replace with custom response
-
-            // var response = context.HttpContext.Response;
-
-            // stream.Seek(0, SeekOrigin.Begin);
-
-            // TODO: Somehow retrieve the correct content-type
-            // response.Headers["Content-Type"] = "application/json";
-
-            // using var writer = response.BodyWriter.AsStream();
-            // await stream.CopyToAsync(writer, context.HttpContext.RequestAborted);
+            // OTHERWISE if reader does work, override `context.Result` with an GlobalCacheObjectResult
         }
 
         public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
         {
             var httpContext = context.HttpContext;
-            var logger = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
-
-            // If the item is cached
-            // if (false)
+            var logger      = httpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
+            
+            // IF the response is a GlobalCacheObjectResult, continue as normal
             {
-                var originalResponse = httpContext.Features.Get<IHttpResponseBodyFeature>();
-                using var writer = originalResponse.Writer.AsStream();
-
-                var newResponse = new MyStreamResponseBodyFeature(writer);
-                httpContext.Features.Set<IHttpResponseBodyFeature>(newResponse);
-                
-                // 1. Serializes to configured output
                 await next();
             }
-            // else
-            // {
-            //     await next();
-            // }
+
+            // OTHERWISE open an exclusive WRITE operation
+            // if (await storage.OpenExclusiveWrite() is var storageWriter)
+            {
+                // Create a PersistentBodyFeature which relays to WRITE stream AND to 
+                // the original response writer
+
+                // var responseWriter = httpContext.Features.Get<IHttpResponseBodyFeature>();
+
+                // httpContext.Features.Set<IHttpResponseBodyFeature>(
+                //     new PersistentBodyFeature(responseWriter, storageWriter)
+                // );
+
+                // Invoke NEXT
+                // try
+                //     await next();
+                // finally
+                //     storageWriter.Writer.Complete();
+            }
         }
     }
 
-    public class MyStreamResponseBodyFeature : StreamResponseBodyFeature
+    public class PersistentBodyFeature : StreamResponseBodyFeature
     {
-        public MyStreamResponseBodyFeature(Stream stream) : base(stream)
+        public PersistentBodyFeature(Stream stream) : base(stream)
+        {
+        }
+    }
+
+    public class GlobalCacheObjectResult : ObjectResult
+    {
+        public GlobalCacheObjectResult(Stream value) : base(value)
         {
         }
     }

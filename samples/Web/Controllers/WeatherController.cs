@@ -39,16 +39,17 @@ namespace Web
         }
 
         [HttpGet("cached")]
+        [Produces("application/json")]
         [ProducesResponseType(typeof(IList<WeatherItem>), 200)]
-        public async Task GetCachedAsync(
+        public async Task<System.IO.Stream> GetCachedAsync(
             [FromServices]ILogger<WeatherController> logger,
             [FromServices]IGlobalCache cache)
         {
             const int days = 100;
 
-            var id = new CacheId("weather", 0);
+            var id = new CacheId("weather", 1);
 
-            using var data = await cache.GetOrCreateRawAsync(id, async stream =>
+            return await cache.GetOrCreateRawAsync(id, async stream =>
             {
                 var items  = new List<WeatherItem>(capacity: days);
                 var start  = DateTime.Today.AddDays(-days);
@@ -71,11 +72,6 @@ namespace Web
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 });
             });
-
-            Response.Headers["Content-Type"] = "application/json";
-
-            using var writer = Response.BodyWriter.AsStream();
-            await data.CopyToAsync(writer, HttpContext.RequestAborted);
         }
         
         [HttpGet("clear")]

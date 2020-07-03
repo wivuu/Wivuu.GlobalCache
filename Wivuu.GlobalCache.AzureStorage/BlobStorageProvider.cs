@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
+
+[assembly: InternalsVisibleTo("Web")]
 
 namespace Wivuu.GlobalCache.AzureStorage
 {
@@ -26,8 +29,8 @@ namespace Wivuu.GlobalCache.AzureStorage
             this.BatchClient     = batchClient;
         }
 
-        protected BlobContainerClient ContainerClient { get; }
-        protected BlobBatchClient? BatchClient { get; }
+        internal BlobContainerClient ContainerClient { get; }
+        internal BlobBatchClient? BatchClient { get; }
 
         static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(60);
 
@@ -36,7 +39,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             ? id.ToString()
             : $"{id}.dat";
 
-        private async Task<AsyncDisposable?> EnterWrite(string path)
+        internal async Task<AsyncDisposable?> EnterWrite(string path)
         {
             try
             {
