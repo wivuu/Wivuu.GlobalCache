@@ -1,9 +1,9 @@
 using System.IO;
 using System.Runtime.CompilerServices;
 
-namespace Wivuu.GlobalCache.AzureStorage
+namespace Wivuu.GlobalCache
 {
-    public class MultiplexWriteStream : Stream
+    internal class MultiplexWriteStream : Stream
     {
         private readonly Stream BaseStream;
         private readonly Stream OtherStream;
