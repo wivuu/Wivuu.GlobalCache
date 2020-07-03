@@ -39,7 +39,6 @@ namespace Web
         }
 
         [HttpGet("cached")]
-        [Produces("application/json")]
         [ProducesResponseType(typeof(IList<WeatherItem>), 200)]
         public async Task<System.IO.Stream> GetCachedAsync(
             [FromServices]ILogger<WeatherController> logger,

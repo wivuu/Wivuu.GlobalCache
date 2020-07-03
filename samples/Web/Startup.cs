@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -47,8 +44,6 @@ namespace Web
                 app.UseDeveloperExceptionPage();
             }
 
-            // app.UseGlobalCacheMiddleware();
-
             app.UseRouting();
 
             app.UseEndpoints(endpoints =>
@@ -60,23 +55,8 @@ namespace Web
         }
     }
 
-    // public static class GlobalCacheMiddleware
-    // {
-    //     public static IApplicationBuilder UseGlobalCacheMiddleware(this IApplicationBuilder app)
-    //     {
-    //         app.Use(async (context, next) =>
-    //         {
-    //             await next.Invoke();
-    //         });
-
-    //         return app;
-    //     }
-    // }
-
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-    public class GlobalCacheAttribute : 
-        // ActionFilterAttribute
-        Attribute, IAsyncActionFilter, IAsyncResultFilter
+    public class GlobalCacheAttribute : Attribute, IAsyncActionFilter, IAsyncResultFilter
     {
         public GlobalCacheAttribute(string category)
         {
@@ -89,6 +69,7 @@ namespace Web
         public string? VaryByContentEncoding { get; set; }
         public Type? VaryByCustom { get; set; }
         public int DurationSecs { get; set; }
+        public string ContentType { get; set; } = "application/json";
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
@@ -120,14 +101,17 @@ namespace Web
             
             // IF the response is a GlobalCacheObjectResult, continue as normal
             if (context.Result is GlobalCacheObjectResult)
+            {
+                context.HttpContext.Response.Headers["Content-Type"] = ContentType;
+
                 await next();
+            }
             else
             {
                 var settings = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
                 var storage  = settings.Value.StorageProvider as BlobStorageProvider;
 
                 // OTHERWISE open an exclusive WRITE operation
-                // if (await storage.OpenExclusiveWrite() is var storageWriter)
                 if (context.HttpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id &&
                     await storage!.TryOpenWrite(id, context.HttpContext.RequestAborted) is Stream storageStream)
                 {
