@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
 using Wivuu.GlobalCache;
 
@@ -12,13 +13,12 @@ namespace Web
     public class WeatherController : ControllerBase
     {
         [HttpGet]
-        [GlobalCache("weather", DurationSecs = 30)]
+        [GlobalCache("weather", VaryByParam="days", VaryByCustom=typeof(TestExpire))]
         public async Task<IList<WeatherItem>> GetCachedAttrAsync(
             [FromServices]ILogger<WeatherController> logger,
-            [FromServices]IGlobalCache cache)
+            [FromServices]IGlobalCache cache,
+            [FromQuery]int days = 100)
         {
-            const int days = 100;
-
             var items  = new List<WeatherItem>(capacity: days);
             var start  = DateTime.Today.AddDays(-days);
             var startc = 10;
@@ -83,6 +83,14 @@ namespace Web
             await cache.InvalidateAsync(CacheId.ForCategory("weather"));
 
             return Ok("Cleared cache");
+        }
+    }
+
+    internal class TestExpire : IGlobalCacheExpiration
+    {
+        public object GetId(ActionExecutingContext context)
+        {
+            return "OK";
         }
     }
 

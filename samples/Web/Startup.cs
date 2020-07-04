@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wivuu.GlobalCache;
 
@@ -64,16 +65,86 @@ namespace Web
         public string Category { get; }
         public string? VaryByParam { get; set; }
         public string? VaryByHeader { get; set; }
-        public string? VaryByContentEncoding { get; set; }
         public Type? VaryByCustom { get; set; }
+
+        /// <summary>
+        /// The cached item will be valid for this many seconds. Leave 
+        /// unspecified or specify `0` for infinite duration
+        /// </summary>
         public int DurationSecs { get; set; }
+
         public string ContentType { get; set; } = "application/json";
+
+        int CalculateHashCode(ActionExecutingContext context)
+        {
+            unchecked
+            {
+                var result = 0;
+
+                // Include duration in hashcode
+                if (DurationSecs > 0)
+                {
+                    var floor = TimeSpan.FromSeconds(DurationSecs).Ticks;
+                    var ticks = DateTimeOffset.UtcNow.Ticks / floor;
+                    var date  = new DateTime(ticks * floor, DateTimeKind.Utc);
+
+                    result = result ^ this.GetHashCode();
+                }
+
+                var log = context.HttpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
+
+                // Include params
+                if (VaryByParam is string varyParam)
+                {
+                    if (varyParam == "*")
+                    {
+                        foreach (var p in context.ActionDescriptor.Parameters)
+                        {
+                            if (!p.BindingInfo.BindingSource.IsFromRequest)
+                                continue;
+
+                            if (context.ActionArguments.TryGetValue(p.Name, out var value))
+                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ value.GetHashCode();
+                        }
+                    }
+                    else
+                    {
+                        var parameters = VaryByParam.Split(';', StringSplitOptions.RemoveEmptyEntries);
+
+                        foreach (var arg in parameters)
+                        {
+                            if (context.ActionArguments.TryGetValue(arg, out var value))
+                                result = result ^ CacheId.GetStringHashCode(arg) ^ value.GetHashCode();
+                        }
+                    }
+                }
+
+                // Include request headers
+                if (VaryByHeader is string varyHeader)
+                {
+                    var reqHeaders = context.HttpContext.Request.Headers;
+                    var parameters = varyHeader.Split(';', StringSplitOptions.RemoveEmptyEntries);
+
+                    foreach (var arg in parameters)
+                    {
+                        if (reqHeaders.TryGetValue(arg, out var value))
+                            result = result ^ CacheId.GetStringHashCode(arg) ^ value.GetHashCode();
+                    }
+                }
+
+                // Vary by some custom input
+                if (VaryByCustom != null && 
+                    typeof(IGlobalCacheExpiration).IsAssignableFrom(VaryByCustom) && 
+                    Activator.CreateInstance(VaryByCustom) is IGlobalCacheExpiration expr)
+                    result = result ^ expr.GetId(context).GetHashCode();
+
+                return result;
+            }
+        }
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            // TODO: Build an ID based on request, attribute settings, and timestamp
-            var id = new CacheId(Category, 0);
-
+            var id       = new CacheId(Category, CalculateHashCode(context));
             var settings = context.HttpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
             var storage  = settings.Value.StorageProvider;
 
@@ -125,6 +196,11 @@ namespace Web
                     await next();
             }
         }
+    }
+
+    public interface IGlobalCacheExpiration
+    {
+        object GetId(ActionExecutingContext context);
     }
 
     public class GlobalCacheObjectResult : ObjectResult
