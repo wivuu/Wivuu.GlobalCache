@@ -21,14 +21,13 @@ namespace Wivuu.GlobalCache.AzureStorage
         }
 
         public override bool CanRead => BaseStream.CanRead;
-        public override bool CanSeek => BaseStream.CanSeek;
-        public override bool CanWrite => BaseStream.CanWrite;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
         public override long Length => BaseStream.Length;
-
         public override long Position
         {
             get => BaseStream.Position;
-            set => BaseStream.Position = value;
+            set => throw new NotSupportedException($"Cannot set Position on a {typeof(PrimedReadStream)}");
         }
 
         /// <summary>
@@ -75,13 +74,11 @@ namespace Wivuu.GlobalCache.AzureStorage
         public override long Seek(long offset, SeekOrigin origin) =>
             BaseStream.Seek(offset, origin);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void SetLength(long value) =>
-            BaseStream.SetLength(value);
+            throw new NotSupportedException($"Cannot SetLength on a {typeof(PrimedReadStream)}");
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Write(byte[] buffer, int offset, int count) =>
-            BaseStream.Write(buffer, offset, count);
+            throw new NotSupportedException($"Cannot Write on a {typeof(PrimedReadStream)}");
 
         protected override void Dispose(bool disposing)
         {

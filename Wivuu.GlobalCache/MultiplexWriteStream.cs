@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Runtime.CompilerServices;
 
@@ -14,31 +15,32 @@ namespace Wivuu.GlobalCache
             OtherStream = otherStream;
         }
 
-        public override bool CanRead => BaseStream.CanRead;
-        public override bool CanSeek => BaseStream.CanSeek;
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
         public override bool CanWrite => BaseStream.CanWrite;
         public override long Length => BaseStream.Length;
 
         public override long Position
         {
             get => BaseStream.Position;
-            set => BaseStream.Position = value;
+            set => throw new NotSupportedException($"Cannot set Position on a {typeof(MultiplexWriteStream)}");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Flush() => BaseStream.Flush();
+        public override void Flush()
+        {
+            BaseStream.Flush();
+            OtherStream.Flush();
+        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int Read(byte[] buffer, int offset, int count) => 
-            BaseStream.Read(buffer, offset, count);
+            throw new NotSupportedException($"Cannot Read from a {typeof(MultiplexWriteStream)}");
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override long Seek(long offset, SeekOrigin origin) =>
-            BaseStream.Seek(offset, origin);
+            throw new NotSupportedException($"Cannot Seek on a {typeof(MultiplexWriteStream)}");
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void SetLength(long value) =>
-            BaseStream.SetLength(value);
+        public override void SetLength(long value) => 
+            throw new NotSupportedException($"Cannot SetLength on a ${typeof(MultiplexWriteStream)}");
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Write(byte[] buffer, int offset, int count)
