@@ -165,7 +165,7 @@ namespace Web
 
             // if reader works, set `context.Result` to a GlobalCacheObjectResult
             if (await storage!.TryOpenRead(id, context.HttpContext.RequestAborted) is Stream stream)
-                context.Result = new GlobalCacheObjectResult(stream);
+                context.Result = new ObjectResult(stream);
             else
             {
                 // Execute next and continue as normal
@@ -179,21 +179,14 @@ namespace Web
         {
             var httpContext = context.HttpContext;
 
-            // IF the response is a GlobalCacheObjectResult, continue as normal
-            if (context.Result is GlobalCacheObjectResult)
-            {
-                httpContext.Response.Headers["Content-Type"] = ContentType;
-
-                await next();
-            }
-            else
+            // IF the CacheId is set, multiplex to persistent storage & output
+            if (httpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id)
             {
                 var settings = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
                 var storage  = settings.Value.StorageProvider;
 
-                // OTHERWISE open an exclusive WRITE operation
-                if (httpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id &&
-                    await storage!.TryOpenWrite(id, httpContext.RequestAborted) is Stream storageStream)
+                // Open exclusive write
+                if (await storage!.TryOpenWrite(id, httpContext.RequestAborted) is Stream storageStream)
                 {
                     // Create a PersistentBodyFeature which relays to WRITE stream AND to
                     // the original response writer
@@ -210,18 +203,18 @@ namespace Web
                 else
                     await next();
             }
+            // OTHERWISE continue as normal
+            else
+            {
+                httpContext.Response.Headers["Content-Type"] = ContentType;
+
+                await next();
+            }
         }
     }
 
     public interface IGlobalCacheExpiration
     {
         object GetId(ActionExecutingContext context);
-    }
-
-    public class GlobalCacheObjectResult : ObjectResult
-    {
-        public GlobalCacheObjectResult(Stream value) : base(value)
-        {
-        }
     }
 }
