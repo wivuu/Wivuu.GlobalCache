@@ -54,7 +54,7 @@ namespace Web
         }
     }
 
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
     public class GlobalCacheAttribute : Attribute, IAsyncActionFilter, IAsyncResultFilter
     {
         public GlobalCacheAttribute(string category)
