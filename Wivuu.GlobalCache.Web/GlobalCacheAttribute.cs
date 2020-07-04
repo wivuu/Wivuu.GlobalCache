@@ -113,8 +113,8 @@ namespace Wivuu.GlobalCache.Web
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            var httpContext = context.HttpContext;
             var id          = new CacheId(Category, CalculateHashCode(context));
+            var httpContext = context.HttpContext;
             var settings    = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
             var storage     = settings.Value.StorageProvider;
 
