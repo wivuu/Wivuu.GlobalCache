@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wivuu.GlobalCache;
 
@@ -106,8 +105,6 @@ namespace Web
                     result = result ^ this.GetHashCode();
                 }
 
-                var log = context.HttpContext.RequestServices.GetService<ILogger<GlobalCacheAttribute>>();
-
                 // Include params
                 if (VaryByParam is string varyParam)
                 {
@@ -159,19 +156,20 @@ namespace Web
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            var id       = new CacheId(Category, CalculateHashCode(context));
-            var settings = context.HttpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
-            var storage  = settings.Value.StorageProvider;
+            var httpContext = context.HttpContext;
+            var id          = new CacheId(Category, CalculateHashCode(context));
+            var settings    = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
+            var storage     = settings.Value.StorageProvider;
 
             // if reader works, set `context.Result` to a GlobalCacheObjectResult
-            if (await storage!.TryOpenRead(id, context.HttpContext.RequestAborted) is Stream stream)
+            if (await storage!.TryOpenRead(id, httpContext.RequestAborted) is Stream stream)
                 context.Result = new ObjectResult(stream);
             else
             {
                 // Execute next and continue as normal
                 await next();
 
-                context.HttpContext.Items.Add("GlobalCache:CacheId", id);
+                httpContext.Items.Add("GlobalCache:CacheId", id);
             }
         }
 
