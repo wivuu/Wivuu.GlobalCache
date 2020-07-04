@@ -28,6 +28,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Wivuu.GlobalCache.AzureStorage\Wivuu.GlobalCache.AzureStorage.csproj" />
     <ProjectReference Include="..\Wivuu.GlobalCache.BinarySerializer\Wivuu.GlobalCache.BinarySerializer.csproj" />
+    <ProjectReference Include="..\Wivuu.GlobalCache.Web\Wivuu.GlobalCache.Web.csproj" />
   </ItemGroup>
 
 </Project>
