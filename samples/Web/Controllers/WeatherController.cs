@@ -13,7 +13,7 @@ namespace Web
     public class WeatherController : ControllerBase
     {
         [HttpGet]
-        [GlobalCache("weather", VaryByParam="days", VaryByCustom=typeof(TestExpire))]
+        [GlobalCache("weather/byday", VaryByParam="days")]
         public async Task<IList<WeatherItem>> GetCachedAttrAsync(
             [FromServices]ILogger<WeatherController> logger,
             [FromServices]IGlobalCache cache,
@@ -83,14 +83,6 @@ namespace Web
             await cache.InvalidateAsync(CacheId.ForCategory("weather"));
 
             return Ok("Cleared cache");
-        }
-    }
-
-    internal class TestExpire : IGlobalCacheExpiration
-    {
-        public object GetId(ActionExecutingContext context)
-        {
-            return "OK";
         }
     }
 

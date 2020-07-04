@@ -63,8 +63,20 @@ namespace Web
         }
 
         public string Category { get; }
+
+        /// <summary>
+        /// Vary by request parameters, separated by semicolon. Use '*' for all request parameters.
+        /// </summary>
         public string? VaryByParam { get; set; }
+
+        /// <summary>
+        /// Vary by request header, separated by semicolon
+        /// </summary>
         public string? VaryByHeader { get; set; }
+
+        /// <summary>
+        /// Vary by custom logic, should be a type inheriting from `IGlobalCacheExpiration`
+        /// </summary>
         public Type? VaryByCustom { get; set; }
 
         /// <summary>
@@ -73,6 +85,9 @@ namespace Web
         /// </summary>
         public int DurationSecs { get; set; }
 
+        /// <summary>
+        /// Response content-type when a cached item is served
+        /// </summary>
         public string ContentType { get; set; } = "application/json";
 
         int CalculateHashCode(ActionExecutingContext context)
