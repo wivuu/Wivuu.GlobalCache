@@ -20,3 +20,4 @@ dotnet pack --configuration Release
 publish .\Wivuu.GlobalCache\bin\Release\*.nupkg
 publish .\Wivuu.GlobalCache.AzureStorage\bin\Release\*.nupkg
 publish .\Wivuu.GlobalCache.BinarySerializer\bin\Release\*.nupkg
+publish .\Wivuu.GlobalCache.Web\bin\Release\*.nupkg
