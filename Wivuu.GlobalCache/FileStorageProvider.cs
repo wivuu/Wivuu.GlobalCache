@@ -112,9 +112,9 @@ namespace Wivuu.GlobalCache
             {
                 // In use by another process
                 if (Environment.OSVersion.Platform == PlatformID.Unix && ex.HResult == 11)
-                    return Task.FromResult<Stream?>(default);
+                    return Task.FromResult<StreamWithCompletion?>(default);
                 if (ex.HResult == -2147024864)
-                    return Task.FromResult<Stream?>(default);
+                    return Task.FromResult<StreamWithCompletion?>(default);
 
                 throw;
             }
