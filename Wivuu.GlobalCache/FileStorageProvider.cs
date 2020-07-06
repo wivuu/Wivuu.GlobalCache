@@ -81,10 +81,13 @@ namespace Wivuu.GlobalCache
             }
             catch (IOException ex)
             {
-                if (ex.HResult == -2147024864) // In use by another process
+                // In use by another process
+                if (Environment.OSVersion.Platform == PlatformID.Unix && ex.HResult == 11)
+                    return Task.FromResult<Stream?>(default);
+                if (ex.HResult == -2147024864)
                     return Task.FromResult<Stream?>(default);
 
-                throw;
+                throw new Exception($"ex: {ex.HResult}", ex);
             }
         }
 
