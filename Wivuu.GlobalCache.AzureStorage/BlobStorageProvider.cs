@@ -188,7 +188,9 @@ namespace Wivuu.GlobalCache.AzureStorage
                     try
                     {
                         await client
-                            .UploadAsync(pipe.Reader.AsStream(true), cancellationToken)
+                            .UploadAsync(pipe.Reader.AsStream(true),
+                                conditions: new BlobRequestConditions { IfMatch = ETag.All }, 
+                                cancellationToken: cancellationToken)
                             .ConfigureAwait(false);
                     }
                     catch (Exception e)
@@ -199,6 +201,7 @@ namespace Wivuu.GlobalCache.AzureStorage
                     finally
                     {
                         await lease.DisposeAsync();
+                        await WaitForFile(path);
                     }
                 });
 
@@ -210,126 +213,6 @@ namespace Wivuu.GlobalCache.AzureStorage
             return null;
         }
 
-        public async Task<T> OpenReadWriteAsync<T>(CacheId id,
-                                                   Func<Stream, Task<T>>? onRead = default,
-                                                   Func<Stream, Task<T>>? onWrite = default,
-                                                   CancellationToken cancellationToken = default)
-        {
-            var path    = IdToString(id);
-            var client  = ContainerClient.GetBlobClient(path);
-            var retries = new RetryHelper(1, 500, totalMaxDelay: LeaseTimeout);
-
-            // Wait for break in traffic
-            do
-            {
-                // Try to READ file
-                if (onRead != null)
-                {
-                    var pipe = new Pipe();
-                    
-                    // Open a task which invokes the onRead callback to process the pipe read stream
-                    var process = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            return await onRead(pipe.Reader.AsStream(true)).ConfigureAwait(false);
-                        }
-                        catch (Exception e)
-                        {
-                            pipe.Reader.Complete(e);
-                            throw;
-                        }
-                        finally
-                        {
-                            pipe.Reader.Complete();
-                        }
-                    });
-
-                    // Open a task which reads from blob storage and writes to the pipe
-                    try
-                    {
-                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-                        await client
-                            .DownloadToAsync(pipe.Writer.AsStream(true), cancellationToken: cts.Token)
-                            .ConfigureAwait(false);
-
-                        pipe.Writer.Complete();
-
-                        return await process.ConfigureAwait(false);
-                    }
-                    catch (RequestFailedException e)
-                    {
-                        pipe.Writer.Complete(e);
-
-                        if (e.Status != 404)
-                            throw;
-                    }
-                    catch (Exception e)
-                    {
-                        pipe.Writer.Complete(e);
-                        throw;
-                    }
-                }
-
-                // Try to WRITE file
-                if (onWrite != null && await EnterWrite(path).ConfigureAwait(false) is IAsyncDisposable writeLock)
-                {
-                    // Create a pipe
-                    var pipe = new Pipe();
-
-                    // Open a task to write to blob storage
-                    var process = Task.Run(async () => 
-                    {
-                        try
-                        {
-                            return await onWrite(pipe.Writer.AsStream(true)).ConfigureAwait(false);
-                        }
-                        catch (Exception e)
-                        {
-                            pipe.Writer.Complete(e);
-                            throw;
-                        }
-                        finally
-                        {
-                            pipe.Writer.Complete();
-                        }
-                    });
-
-                    // Copy pipe to upload
-                    try
-                    {
-                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-                        await client
-                            .UploadAsync(pipe.Reader.AsStream(true), cts.Token)
-                            .ConfigureAwait(false);
-                    }
-                    catch (Exception e)
-                    {
-                        pipe.Reader.Complete(e);
-                        throw;
-                    }
-                    finally
-                    {
-                        pipe.Reader.Complete();
-
-                        // Wait for file to return before releasing lock
-                        await WaitForFile(path, cancellationToken).ConfigureAwait(false);
-                        await writeLock.DisposeAsync().ConfigureAwait(false);
-                    }
-
-                    return await process.ConfigureAwait(false);
-                }
-                
-                if (await retries.DelayAsync(cancellationToken).ConfigureAwait(false) == false)
-                    throw new TimeoutException();
-            }
-            while (!cancellationToken.IsCancellationRequested);
-
-            throw new TaskCanceledException();
-        }
-        
         /// <summary>
         /// Wait for file to exist
         /// </summary>

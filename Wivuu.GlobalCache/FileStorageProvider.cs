@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -64,94 +63,29 @@ namespace Wivuu.GlobalCache
             }
         }
 
-        public async Task<T> OpenReadWriteAsync<T>(CacheId id,
-                                                   Func<Stream, Task<T>>? onRead = null,
-                                                   Func<Stream, Task<T>>? onWrite = null,
-                                                   CancellationToken cancellationToken = default)
-        {
-            if (id.IsCategory)
-                throw new ArgumentException("Cannot read/write to a category");
-
-            var path = IdToString(id);
-
-            EnsureDirectory(path);
-
-            var retries = new RetryHelper(1, 500, totalMaxDelay: LeaseTimeout);
-
-            // Wait for break in traffic
-            do
-            {
-                // Try to read the file
-                if (onRead != null)
-                {
-                    var pipe = new Pipe();
-
-                    try
-                    {
-                        using var fileStream   = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                        using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        using var writerStream = pipe.Writer.AsStream(true);
-
-                        var readerTask = Task.Run(() => onRead(pipe.Reader.AsStream(true)));
-
-                        await Task.WhenAll(
-                            readerTask
-                                .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException())),
-                            fileStream
-                                .CopyToAsync(writerStream, cancellationToken)
-                                .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException()))
-                        ).ConfigureAwait(false);
-
-                        if (readerTask.IsCompletedSuccessfully)
-                            return readerTask.Result;
-                    }
-                    catch (IOException e)
-                    {
-                        if (e is FileNotFoundException) {}
-                        else
-                            continue;
-                    }
-                }
-
-                // Try to WRITE file
-                if (onWrite != null)
-                {
-                    // Create a new pipe
-                    var pipe = new Pipe();
-
-                    using var fileStream   = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
-                    using var cts          = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    using var readerStream = pipe.Reader.AsStream(true);
-
-                    var writerTask = Task.Run(() => onWrite(pipe.Writer.AsStream(true)));
-
-                    await Task.WhenAll(
-                        writerTask
-                            .ContinueWith(t => pipe.Writer.Complete(t.Exception?.GetBaseException())),
-                        readerStream
-                            .CopyToAsync(fileStream)
-                            .ContinueWith(t => pipe.Reader.Complete(t.Exception?.GetBaseException()))
-                    );
-
-                    if (writerTask.IsCompletedSuccessfully)
-                        return writerTask.Result;
-                }
-
-                if (await retries.DelayAsync(cancellationToken).ConfigureAwait(false) == false)
-                    throw new TimeoutException();
-            }
-            while (!cancellationToken.IsCancellationRequested);
-
-            throw new TaskCanceledException();
-        }
-
         public Task<Stream?> TryOpenRead(CacheId id, CancellationToken cancellationToken = default)
         {
             var path = IdToString(id);
 
             EnsureDirectory(path);
 
-            return Task.FromResult<Stream?>(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read));
+            try
+            {
+                var result = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                
+                return Task.FromResult<Stream?>(result);
+            }
+            catch (FileNotFoundException)
+            {
+                return Task.FromResult<Stream?>(default);
+            }
+            catch (IOException ex)
+            {
+                if (ex.HResult == -2147024864) // In use by another process
+                    return Task.FromResult<Stream?>(default);
+
+                throw;
+            }
         }
 
         public Task<StreamWithCompletion?> TryOpenWrite(CacheId id, CancellationToken cancellationToken = default)
@@ -160,12 +94,24 @@ namespace Wivuu.GlobalCache
 
             EnsureDirectory(path);
 
-            return Task.FromResult<StreamWithCompletion?>(
-                new StreamWithCompletion(
-                    new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None),
-                    Task.CompletedTask
-                )
-            );
+            try 
+            {
+                var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+
+                return Task.FromResult<StreamWithCompletion?>(
+                    new StreamWithCompletion(
+                        fs,
+                        Task.CompletedTask
+                    )
+                );
+            }
+            catch (IOException ex)
+            {
+                if (ex.HResult == -2147024864) // In use by another process
+                    return Task.FromResult<StreamWithCompletion?>(default);
+
+                throw;
+            }
         }
     }
 }

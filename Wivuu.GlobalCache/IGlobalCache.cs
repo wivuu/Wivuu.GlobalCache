@@ -39,17 +39,6 @@ namespace Wivuu.GlobalCache
                                     CancellationToken cancellationToken = default);
         
         /// <summary>
-        /// Gets item from global cache; only invoking generator if item is not cached, outputs already serialized
-        /// </summary>
-        /// <param name="id"></param>
-        /// <param name="generator"></param>
-        /// <param name="cancellationToken">Cancellation token</param>
-        /// <returns>A stream of cached or newly created data</returns>
-        Task<Stream> GetOrCreateRawAsync(CacheId id,
-                                         Func<Stream, Task> generator,
-                                         CancellationToken cancellationToken = default);
-
-        /// <summary>
         /// Creates item in global cache
         /// </summary>
         /// <param name="id">Id of item to create</param>
@@ -61,14 +50,6 @@ namespace Wivuu.GlobalCache
                             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Writes raw stream data to underlying storage provider
-        /// </summary>
-        /// <param name="id">Id to write to</param>
-        /// <param name="generator">Function which writes to stream</param>
-        /// <param name="cancellationToken">Cancellation token</param>
-        Task CreateRawAsync(CacheId id, Func<Stream, Task> generator, CancellationToken cancellationToken = default);
-        
-        /// <summary>
         /// Gets item from global cache - WARNING: May blocks or timeout based on underlying provider, if
         /// the cached item is not present
         /// </summary>
@@ -79,15 +60,6 @@ namespace Wivuu.GlobalCache
         Task<T> GetAsync<T>(CacheId id,
                             CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Gets item from global cache
-        /// </summary>
-        /// <param name="id">Id of item to retrieve</param>
-        /// <param name="cancellationToken">Cancellation token</param>
-        /// <returns>A stream</returns>
-        Task<Stream> GetRawAsync(CacheId id,
-                                 CancellationToken cancellationToken = default);
-        
         /// <summary>
         /// Globally invalidates by cache id
         /// </summary>

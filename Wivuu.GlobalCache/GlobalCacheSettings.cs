@@ -1,3 +1,5 @@
+using System;
+
 namespace Wivuu.GlobalCache
 {
     public class GlobalCacheSettings
@@ -14,5 +16,10 @@ namespace Wivuu.GlobalCache
         /// - Azure Blob Storage (install Wivuu.GlobalCache.AzureStorage)
         /// </summary>
         public IStorageProvider? StorageProvider { get; set; } 
+
+        /// <summary>
+        /// Max amount of time to wait (defaults to 60 seconds)
+        /// </summary>
+        public TimeSpan? RetryTimeout { get; set; }
     }
 }
