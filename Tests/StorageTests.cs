@@ -69,6 +69,28 @@ namespace Tests
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                store.RemoveAsync(id),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
+                GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
                 GetOrCreateAsync().ContinueWith(task => Assert.Equal(str, task.Result)),
@@ -78,24 +100,41 @@ namespace Tests
 
             // await store.RemoveAsync(id);
 
-            async Task<string> GetOrCreateAsync() => 
-                await store.OpenReadWriteAsync(
-                    id,
-                    onWrite: async stream =>
-                    {
-                        // !!!!Expensive data generation here!!!!
-                        await stream.WriteAsync(Encoding.Default.GetBytes(str!));
-                        Interlocked.Increment(ref writes);
-                        // !!!!
+            async Task<string> GetOrCreateAsync()
+            {
+                var retries = new RetryHelper(1, 500, totalMaxDelay: TimeSpan.FromSeconds(60));
 
+                do
+                {
+                    if (await store.TryOpenRead(id) is Stream readStream)
+                    {
+                        using (readStream)
+                        {
+                            using var sr = new StreamReader(readStream);
+
+                            return await sr.ReadToEndAsync();
+                        }
+                    }
+                    
+                    if (await store.TryOpenWrite(id) is StreamWithCompletion writeStream)
+                    {
+                        using (writeStream)
+                        {
+                            // !!!!Expensive data generation here!!!!
+                            await writeStream.WriteAsync(Encoding.Default.GetBytes(str!));
+                            Interlocked.Increment(ref writes);
+                            // !!!!
+                        }
+
+                        await writeStream;
                         return str!;
-                    },
-                    onRead: async stream =>
-                    {
-                        using var sr = new StreamReader(stream);
-
-                        return await sr.ReadToEndAsync();
-                    });
+                    }
+                        
+                    if (await retries.DelayAsync().ConfigureAwait(false) == false)
+                        throw new TimeoutException();
+                }
+                while (true);
+            }
         }
 
         [Theory]
@@ -127,12 +166,12 @@ namespace Tests
             var id2 = new CacheId("remove", 2);
 
             // Write two values
-            var val1 = await store.OpenReadWriteAsync(id1, onWrite: stream => {
+            var val1 = await OpenReadWriteAsync(id1, onWrite: stream => {
                 stream.WriteByte(1);
                 return Task.FromResult(1);
             });
             
-            var val2 = await store.OpenReadWriteAsync(id2, onWrite: stream => {
+            var val2 = await OpenReadWriteAsync(id2, onWrite: stream => {
                 stream.WriteByte(2);
                 return Task.FromResult(2);
             });
@@ -142,7 +181,7 @@ namespace Tests
             await CheckRemoved(id1, 1);
 
             // Check 2 still exists
-            Assert.Equal(val2, await store.OpenReadWriteAsync(id2, onRead: stream => Task.FromResult(stream.ReadByte())));
+            Assert.Equal(val2, await OpenReadWriteAsync(id2, onRead: stream => Task.FromResult(stream.ReadByte())));
 
             // Clear ALL values
             Assert.True(await store.RemoveAsync(CacheId.ForCategory("remove")), "id1 and id2 should have been removed");
@@ -156,7 +195,7 @@ namespace Tests
 
                     cts.CancelAfter(TimeSpan.FromMilliseconds(20));
 
-                    var value = await store.OpenReadWriteAsync(
+                    var value = await OpenReadWriteAsync(
                         id, 
                         onRead: stream => Task.FromResult(stream.ReadByte()),
                         cancellationToken: cts.Token
@@ -169,6 +208,45 @@ namespace Tests
                 {
                     // Pass
                 }
+            }
+
+            async Task<T> OpenReadWriteAsync<T>(CacheId id,
+                                                Func<Stream, Task<T>>? onWrite = null,
+                                                Func<Stream, Task<T>>? onRead = null, 
+                                                CancellationToken cancellationToken = default)
+            {
+                var retries = new RetryHelper(1, 500, totalMaxDelay: TimeSpan.FromSeconds(10));
+
+                // Wait for a break in traffic
+                do
+                {
+                    // Try to READ the file
+                    if (onRead != null && await store.TryOpenRead(id, cancellationToken) is Stream reader)
+                    {
+                        using (reader)
+                            return await onRead(reader);
+                    }
+
+                    // Try to WRITE file
+                    if (onWrite != null && await store.TryOpenWrite(id, cancellationToken) is StreamWithCompletion writer)
+                    {
+                        try
+                        {
+                            using (writer)
+                                return await onWrite(writer);
+                        }
+                        finally
+                        {
+                            await writer;
+                        }
+                    }
+
+                    if (await retries.DelayAsync(cancellationToken).ConfigureAwait(false) == false)
+                        throw new TimeoutException();
+                }
+                while (!cancellationToken.IsCancellationRequested);
+
+                throw new TaskCanceledException();
             }
         }
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
 using Wivuu.GlobalCache;
@@ -66,7 +67,7 @@ namespace Tests
             await store.RemoveAsync(id);
 
             // Write data
-            var written = await store.OpenReadWriteAsync(id, onWrite: async stream =>
+            var written = await OpenReadWriteAsync(id, onWrite: async stream =>
             {
                 // Open database and query data
                 var items = new List<string>();
@@ -74,7 +75,7 @@ namespace Tests
                 await foreach (var item in GetData())
                     items.Add(item);
 
-                _ = serializer.SerializeToStreamAsync(items, stream);
+                await serializer.SerializeToStreamAsync(items, stream);
 
                 return items;
             });
@@ -83,7 +84,7 @@ namespace Tests
             Assert.NotEmpty(written);
 
             // Read data
-            var read = await store.OpenReadWriteAsync(id, onRead: async stream =>
+            var read = await OpenReadWriteAsync(id, onRead: async stream =>
                 await serializer.DeserializeFromStreamAsync<List<string>>(stream)
             );
 
@@ -100,6 +101,45 @@ namespace Tests
                     await Task.Yield();
                     yield return $"Item {i}";
                 }
+            }
+
+            async Task<T> OpenReadWriteAsync<T>(CacheId id,
+                                                Func<Stream, Task<T>>? onWrite = null,
+                                                Func<Stream, Task<T>>? onRead = null, 
+                                                CancellationToken cancellationToken = default)
+            {
+                var retries = new RetryHelper(1, 500, totalMaxDelay: TimeSpan.FromSeconds(10));
+
+                // Wait for a break in traffic
+                do
+                {
+                    // Try to READ the file
+                    if (onRead != null && await store.TryOpenRead(id, cancellationToken) is Stream reader)
+                    {
+                        using (reader)
+                            return await onRead(reader);
+                    }
+
+                    // Try to WRITE file
+                    if (onWrite != null && await store.TryOpenWrite(id, cancellationToken) is StreamWithCompletion writer)
+                    {
+                        try
+                        {
+                            using (writer)
+                                return await onWrite(writer);
+                        }
+                        finally
+                        {
+                            await writer;
+                        }
+                    }
+
+                    if (await retries.DelayAsync(cancellationToken).ConfigureAwait(false) == false)
+                        throw new TimeoutException();
+                }
+                while (!cancellationToken.IsCancellationRequested);
+
+                throw new TaskCanceledException();
             }
         }
     }
