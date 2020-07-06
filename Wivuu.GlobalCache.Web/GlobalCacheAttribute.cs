@@ -141,19 +141,24 @@ namespace Wivuu.GlobalCache.Web
                 var storage  = settings.Value.StorageProvider;
 
                 // Open exclusive write
-                if (await storage!.TryOpenWrite(id, httpContext.RequestAborted) is Stream storageStream)
+                if (await storage!.TryOpenWrite(id, httpContext.RequestAborted) is StreamWithCompletion storageStream)
                 {
-                    // Create a PersistentBodyFeature which relays to WRITE stream AND to
-                    // the original response writer
-                    var responseWriter = httpContext.Features.Get<IHttpResponseBodyFeature>();
+                    using (storageStream)
+                    {
+                        // Create a PersistentBodyFeature which relays to WRITE stream AND to
+                        // the original response writer
+                        var responseWriter = httpContext.Features.Get<IHttpResponseBodyFeature>();
 
-                    using var multistream = new MultiplexWriteStream(
-                        responseWriter.Writer.AsStream(true), storageStream);
+                        using var multistream = new MultiplexWriteStream(
+                            responseWriter.Writer.AsStream(true), storageStream);
 
-                    httpContext.Features.Set<IHttpResponseBodyFeature>(
-                        new StreamResponseBodyFeature(multistream));
+                        httpContext.Features.Set<IHttpResponseBodyFeature>(
+                            new StreamResponseBodyFeature(multistream));
 
-                    await next();
+                        await next();
+                    }
+                    
+                    await storageStream;
                 }
                 else
                     await next();

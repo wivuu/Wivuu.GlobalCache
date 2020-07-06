@@ -189,7 +189,7 @@ namespace Wivuu.GlobalCache.AzureStorage
                     {
                         await client
                             .UploadAsync(pipe.Reader.AsStream(true),
-                                conditions: new BlobRequestConditions { IfMatch = ETag.All }, 
+                                conditions: new BlobRequestConditions { },
                                 cancellationToken: cancellationToken)
                             .ConfigureAwait(false);
                     }
