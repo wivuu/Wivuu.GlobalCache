@@ -72,8 +72,11 @@ namespace Wivuu.GlobalCache.Web
                             if (!p.BindingInfo.BindingSource.IsFromRequest)
                                 continue;
 
-                            if (context.ActionArguments.TryGetValue(p.Name, out var value))
-                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ value.GetHashCode();
+                            if (context.ActionArguments.TryGetValue(p.Name, out var argValue))
+                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ argValue.GetHashCode();
+                                
+                            else if (context.RouteData.Values.TryGetValue(p.Name, out var routeValue))
+                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ routeValue.GetHashCode();
                         }
                     }
                     else
@@ -82,8 +85,11 @@ namespace Wivuu.GlobalCache.Web
 
                         foreach (var arg in parameters)
                         {
-                            if (context.ActionArguments.TryGetValue(arg, out var value))
-                                result = result ^ CacheId.GetStringHashCode(arg) ^ value.GetHashCode();
+                            if (context.ActionArguments.TryGetValue(arg, out var argValue))
+                                result = result ^ CacheId.GetStringHashCode(arg) ^ argValue.GetHashCode();
+
+                            else if (context.RouteData.Values.TryGetValue(arg, out var routeValue))
+                                result = result ^ CacheId.GetStringHashCode(arg) ^ routeValue.GetHashCode();
                         }
                     }
                 }
