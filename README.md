@@ -34,7 +34,8 @@ dotnet add package Wivuu.GlobalCache
 
 # Or install the azure storage adapter directly
 dotnet add package Wivuu.GlobalCache.AzureStorage # Install Azure Storage adapter
-dotnet add package Wivuu.GlobalCache.BinarySerializer # Install Binary Serialization adapter
+dotnet add package Wivuu.GlobalCache.BinarySerializer # Optionally: Install Binary Serialization adapter
+dotnet add package Wivuu.GlobalCache.Web # Optionally: Install ASP.NET globalcache attribute
 ```
 
 ## Usage with DependencyInjection
@@ -72,7 +73,7 @@ public void ConfigureServices(IServiceCollection collection)
 }
 ```
 
-## Usage in a controller
+## Usage with DI
 
 Once the global cache has been configured, it can be included using standard DI
 
@@ -98,4 +99,34 @@ public async Task<ActionResult<string>> GetExpensiveItemAsync([FromServices]IGlo
 public async Task PutInvalidationAsync([FromServices]IGlobalCache cache) =>
     // Invalidate all names stored in the cache
     await cache.InvalidateAsync(CacheId.ForCategory("expensiveitems"));
+```
+
+## Using the GlobalCache attribute with ASP.NET Core
+
+The easiest way to use Wivuu GlobalCache with ASP.NET is with the `GlobalCache` attribute. 
+The attribute contains several options for specifying which cached item to pull, such as varying by parameters, headers, or by your own custom logic (by implementing `IGlobalCacheExpiration`). You can also set a duration on the attribute which floors the current date by your specified duration, so if you want requests to get updated information every hour, you would use `3600` seconds, and a new cache key would be generated every hour your action is requested.
+
+### How it works
+The `GlobalCache` works by adding a `IAsyncActionFilter` which generates a predictable cache id inside your `category`, based on the request parameters, route, and attribute settings, then it attempts to open up a read stream to the cached location. If that cached response is not found, it execute your action as normal and append an HTTP Context item for later in the pipeline. Otherwise it will send the cached response back.
+
+The `GlobalCache` attribute additionally implements the `IAsyncResultFilter` which checks if a cache id is present in the HTTP context; if it is it will intercept your actions response stream and multiplex it to the client AND to the cache backing storage.
+
+### Install the package
+
+```
+dotnet add package Wivuu.GlobalCache.Web
+```
+
+Once the package is installed, and the service is configured in your Startup.cs, simply add the attribute to your actions, like below.
+
+```C#
+[HttpGet]
+[GlobalCache("weather/byday", VaryByParam="days")]
+public async Task<IList<WeatherItem>> GetAsync([FromQuery]int days = 100)
+{
+    var start  = DateTime.Now.AddDays(-days);
+    var report = await MyWeatherAPI.GetWeatherSinceAsync(start);
+
+    return report;
+}
 ```

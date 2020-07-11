@@ -15,7 +15,6 @@ namespace Web
         [GlobalCache("weather/byday", VaryByParam="days")]
         public async Task<IList<WeatherItem>> GetCachedAttrAsync(
             [FromServices]ILogger<WeatherController> logger,
-            [FromServices]IGlobalCache cache,
             [FromQuery]int days = 100)
         {
             var items  = new List<WeatherItem>(capacity: days);
