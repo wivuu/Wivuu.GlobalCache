@@ -13,6 +13,10 @@ namespace Wivuu.GlobalCache.Web
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
     public class GlobalCacheAttribute : Attribute, IAsyncActionFilter, IAsyncResultFilter
     {
+        /// <summary>
+        /// GlobalCache attribute
+        /// </summary>
+        /// <param name="category">The prefix category of the cached item</param>
         public GlobalCacheAttribute(string category)
         {
             Category = category;
@@ -36,7 +40,7 @@ namespace Wivuu.GlobalCache.Web
         public Type? VaryByCustom { get; set; }
 
         /// <summary>
-        /// The cached item will be valid for this many seconds. Leave 
+        /// The cached item will be valid for at most this many seconds. Leave 
         /// unspecified or specify `0` for infinite duration
         /// </summary>
         public int DurationSecs { get; set; }
