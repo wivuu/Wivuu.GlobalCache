@@ -26,6 +26,9 @@
 		"ms-dotnettools.csharp"
 	],
 
+	"runArgs": [
+		"-v", "/var/run/docker.sock:/var/run/docker.sock"],
+
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [5000, 5001],
 
