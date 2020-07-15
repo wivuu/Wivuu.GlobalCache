@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 
 on:
   push:
@@ -24,3 +24,6 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     - name: Test
       run: dotnet test --no-restore --verbosity normal
+    - name: Push to NuGet
+      run: |
+        pwsh ./publish.ps1 -key $NUGET_API_KEY
