@@ -3,7 +3,9 @@ param(
 )
 
 function publish ($path) {
-    $file = gci $path | sort LastWriteTime | select -last 1
+    $file = Get-ChildItem $path `
+        | Sort-Object LastWriteTime `
+        | Select-Object -Last 1
 
     Write-Host "Publish $file ..."
 
