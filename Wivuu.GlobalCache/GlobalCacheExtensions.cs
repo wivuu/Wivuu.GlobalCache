@@ -15,13 +15,13 @@ namespace Microsoft.Extensions.DependencyInjection
         {
             collection.Configure<GlobalCacheSettings>(options =>
             {
-                if (configure != null)
+                if (configure != null) // TODO: is not
                     configure(options);
 
-                if (options.StorageProvider == null)
+                if (options.StorageProvider is null)
                     options.StorageProvider = new FileStorageProvider();
 
-                if (options.SerializationProvider == null)
+                if (options.SerializationProvider is null)
                     options.SerializationProvider = new JsonSerializationProvider();
             });
 
