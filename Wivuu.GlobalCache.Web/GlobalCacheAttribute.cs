@@ -77,10 +77,10 @@ namespace Wivuu.GlobalCache.Web
                                 continue;
 
                             if (context.ActionArguments.TryGetValue(p.Name, out var argValue))
-                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ argValue.GetHashCode();
+                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ (argValue?.GetHashCode() ?? 0);
                                 
                             else if (context.RouteData.Values.TryGetValue(p.Name, out var routeValue))
-                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ routeValue.GetHashCode();
+                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ (routeValue?.GetHashCode() ?? 0);
                         }
                     }
                     else
@@ -90,10 +90,10 @@ namespace Wivuu.GlobalCache.Web
                         foreach (var arg in parameters)
                         {
                             if (context.ActionArguments.TryGetValue(arg, out var argValue))
-                                result = result ^ CacheId.GetStringHashCode(arg) ^ argValue.GetHashCode();
+                                result = result ^ CacheId.GetStringHashCode(arg) ^ (argValue?.GetHashCode() ?? 0);
 
                             else if (context.RouteData.Values.TryGetValue(arg, out var routeValue))
-                                result = result ^ CacheId.GetStringHashCode(arg) ^ routeValue.GetHashCode();
+                                result = result ^ CacheId.GetStringHashCode(arg) ^ (routeValue?.GetHashCode() ?? 0);
                         }
                     }
                 }
@@ -107,7 +107,7 @@ namespace Wivuu.GlobalCache.Web
                     foreach (var arg in parameters)
                     {
                         if (reqHeaders.TryGetValue(arg, out var value))
-                            result = result ^ CacheId.GetStringHashCode(arg) ^ value.GetHashCode();
+                            result = result ^ CacheId.GetStringHashCode(arg) ^ CacheId.GetStringHashCode(value);
                     }
                 }
 
