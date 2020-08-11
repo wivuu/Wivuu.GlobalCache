@@ -30,7 +30,7 @@ namespace Tests
 
             for (var tries = 0; tries < 2; ++tries)
             {
-                var resp = await client.GetStringAsync("");
+                var resp = await client.GetStringAsync("?days=10");
                 var data = JsonConvert.DeserializeAnonymousType(resp, new [] {
                     new {
                         Date         = default(DateTimeOffset),
@@ -39,7 +39,7 @@ namespace Tests
                 });
 
                 Assert.NotNull(data);
-                Assert.NotEmpty(data);
+                Assert.Equal(10, data.Length);
                 Assert.NotEqual(default, data[0].Date);
                 Assert.NotEqual(default, data[0].TemperatureC);
             }
