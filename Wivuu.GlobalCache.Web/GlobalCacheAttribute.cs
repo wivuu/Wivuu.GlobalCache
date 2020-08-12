@@ -50,6 +50,14 @@ namespace Wivuu.GlobalCache.Web
         /// </summary>
         public string ContentType { get; set; } = "application/json";
 
+        /// <summary>
+        /// By default `DurationSecs` will simply floor the period, for example: 60 seconds will always start at the
+        /// start of every minute, and 3,600 will always default to the start of every hour. Using `OffsetDurationSecs`
+        /// offsets that by the input seconds, so -600 on duration 3600 will start the interval at 10 minutes prior 
+        /// to beginning of the hour.
+        /// </summary>
+        public int OffsetDurationSecs { get; set; }
+
         int CalculateHashCode(ActionExecutingContext context)
         {
             unchecked
@@ -61,9 +69,9 @@ namespace Wivuu.GlobalCache.Web
                 {
                     var floor = TimeSpan.FromSeconds(DurationSecs).Ticks;
                     var ticks = DateTimeOffset.UtcNow.Ticks / floor;
-                    var date  = new DateTime(ticks * floor, DateTimeKind.Utc);
+                    var date  = new DateTime(ticks * floor, DateTimeKind.Utc).AddSeconds(OffsetDurationSecs);
 
-                    result = result ^ this.GetHashCode();
+                    result = result ^ date.GetHashCode();
                 }
 
                 // Include params

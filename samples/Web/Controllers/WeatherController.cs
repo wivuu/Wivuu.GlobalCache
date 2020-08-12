@@ -12,10 +12,10 @@ namespace Web
     public class WeatherController : ControllerBase
     {
         [HttpGet]
-        [GlobalCache("weather/byday", VaryByParam="days")]
+        [GlobalCache("weather/byday", VaryByParam="days", DurationSecs=60, OffsetDurationSecs = -10)]
         public async Task<IList<WeatherItem>> GetCachedAttrAsync(
-            [FromServices]ILogger<WeatherController> logger,
-            [FromQuery]int days = 100)
+            [FromServices] ILogger<WeatherController> logger,
+            [FromQuery] int days = 100)
         {
             var items  = new List<WeatherItem>(capacity: days);
             var start  = DateTime.Today.AddDays(-days);

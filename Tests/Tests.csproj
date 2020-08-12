@@ -13,9 +13,10 @@
 
   <ItemGroup>
     <PackageReference Include="MessagePackAnalyzer" Version="2.1.152" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="3.1.6" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.6.1" />
     <PackageReference Include="xunit" Version="2.4.1" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.2">
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -29,6 +30,7 @@
     <ProjectReference Include="..\Wivuu.GlobalCache.AzureStorage\Wivuu.GlobalCache.AzureStorage.csproj" />
     <ProjectReference Include="..\Wivuu.GlobalCache.BinarySerializer\Wivuu.GlobalCache.BinarySerializer.csproj" />
     <ProjectReference Include="..\Wivuu.GlobalCache.Web\Wivuu.GlobalCache.Web.csproj" />
+    <ProjectReference Include="..\samples\Web\Web.csproj" />
   </ItemGroup>
 
 </Project>
