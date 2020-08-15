@@ -138,8 +138,8 @@ namespace Wivuu.GlobalCache.Web
             var id          = new CacheId(Category, CalculateHashCode(context), ifNoneMatch);
 
             httpContext.Response.Headers["Cache-Control"] = DurationSecs > 0
-                ? $"public, max-age={DurationSecs}"
-                : $"public";
+                ? $"private, max-age={DurationSecs}"
+                : $"private";
                 
             // if reader works, set `context.Result` to a GlobalCacheObjectResult
             if (await storage!.TryOpenRead(id, httpContext.RequestAborted) is Stream stream)
