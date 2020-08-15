@@ -6,53 +6,58 @@ namespace Wivuu.GlobalCache
 {
     public sealed class StreamWithCompletion : Stream
     {
-        private readonly Stream BaseStream;
-        private readonly Task Completion;
+        private readonly Stream _baseStream;
+        private readonly Task _completion;
 
         internal StreamWithCompletion(Stream baseStream, Task completion)
         {
-            BaseStream = baseStream;
-            Completion = completion;
+            _baseStream = baseStream;
+            _completion = completion;
         }
 
-        public override bool CanRead => BaseStream.CanRead;
-        public override bool CanSeek => BaseStream.CanSeek;
-        public override bool CanWrite => BaseStream.CanWrite;
-        public override long Length => BaseStream.Length;
+        /// <summary>
+        /// Task awaiting completion before stream is complete
+        /// </summary>
+        public Task Completion => _completion;
+
+        public override bool CanRead => _baseStream.CanRead;
+        public override bool CanSeek => _baseStream.CanSeek;
+        public override bool CanWrite => _baseStream.CanWrite;
+        public override long Length => _baseStream.Length;
 
         public override long Position
         {
-            get => BaseStream.Position;
-            set => BaseStream.Position = value;
+            get => _baseStream.Position;
+            set => _baseStream.Position = value;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Flush() => BaseStream.Flush();
+        public override void Flush() => _baseStream.Flush();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int Read(byte[] buffer, int offset, int count) => 
-            BaseStream.Read(buffer, offset, count);
+            _baseStream.Read(buffer, offset, count);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override long Seek(long offset, SeekOrigin origin) =>
-            BaseStream.Seek(offset, origin);
+            _baseStream.Seek(offset, origin);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void SetLength(long value) =>
-            BaseStream.SetLength(value);
+            _baseStream.SetLength(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Write(byte[] buffer, int offset, int count) =>
-            BaseStream.Write(buffer, offset, count);
+            _baseStream.Write(buffer, offset, count);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public TaskAwaiter GetAwaiter() =>
-            Completion.GetAwaiter();
+            _completion.GetAwaiter();
 
         protected override void Dispose(bool disposing)
         {
             base.Dispose(true);
-            BaseStream.Dispose();
+            _baseStream.Dispose();
         }
     }
 }

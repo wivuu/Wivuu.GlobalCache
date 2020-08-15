@@ -25,6 +25,11 @@ namespace Wivuu.GlobalCache.Web
         public string Category { get; }
 
         /// <summary>
+        /// Cache control: none, private or public (defaults to public)
+        /// </summary>
+        public CacheControlLevel CacheControlLevel { get; set; } = CacheControlLevel.Public;
+
+        /// <summary>
         /// Vary by request parameters, separated by semicolon. Use '*' for all request parameters.
         /// </summary>
         public string? VaryByParam { get; set; }
@@ -131,14 +136,42 @@ namespace Wivuu.GlobalCache.Web
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            var id          = new CacheId(Category, CalculateHashCode(context));
             var httpContext = context.HttpContext;
             var settings    = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
+            var ifNoneMatch = httpContext.Request.Headers["If-None-Match"];
             var storage     = settings.Value.StorageProvider;
+            var id          = new CacheId(Category, CalculateHashCode(context), ifNoneMatch);
 
+            if (CacheControlLevel != CacheControlLevel.None)
+            {
+                var level = CacheControlLevel == CacheControlLevel.Private ? "private" : "public";
+
+                httpContext.Response.Headers["Cache-Control"] = DurationSecs > 0
+                    ? $"{level}, max-age={DurationSecs}"
+                    : level;
+            }
+                
             // if reader works, set `context.Result` to a GlobalCacheObjectResult
             if (await storage!.TryOpenRead(id, httpContext.RequestAborted) is Stream stream)
-                context.Result = new ObjectResult(stream);
+            {
+                // Output etag
+                if (CacheControlLevel != CacheControlLevel.None &&
+                    stream is IHasEtag etagContainer &&
+                    etagContainer.ETag is string etag)
+                {
+                    httpContext.Response.Headers["ETag"] = etag;
+
+                    // If requested etag is the same as the stream etag, return not modified
+                    if (ifNoneMatch == etag)
+                    {
+                        httpContext.Response.StatusCode = 304;
+                        context.Result = new EmptyResult();
+                        return;
+                    }
+                }
+
+                context.Result = new OkObjectResult(stream);
+            }
             else
             {
                 // Execute next and continue as normal
@@ -161,6 +194,13 @@ namespace Wivuu.GlobalCache.Web
                 // Open exclusive write
                 if (await storage!.TryOpenWrite(id, httpContext.RequestAborted) is StreamWithCompletion storageStream)
                 {
+                    var hasTrailers = 
+                        CacheControlLevel != CacheControlLevel.None &&
+                        httpContext.Response.SupportsTrailers();
+
+                    if (hasTrailers)
+                        httpContext.Response.DeclareTrailer("ETag");
+
                     using (storageStream)
                     {
                         // Create a PersistentBodyFeature which relays to WRITE stream AND to
@@ -175,8 +215,17 @@ namespace Wivuu.GlobalCache.Web
 
                         await next();
                     }
-                    
-                    await storageStream;
+
+                    if (hasTrailers && storageStream.Completion is Task<string> etagTask)
+                    {
+                        // Add etag to trailer
+                        if (await etagTask is string etag)
+                            httpContext.Response.AppendTrailer("ETag", etag);
+                        else
+                            httpContext.Response.AppendTrailer("ETag", "\"\"");
+                    }
+                    else
+                        await storageStream;
                 }
                 else
                     await next();

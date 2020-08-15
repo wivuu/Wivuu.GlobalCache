@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Primitives;
+
 namespace Wivuu.GlobalCache
 {
     /// <summary>
@@ -16,14 +18,21 @@ namespace Wivuu.GlobalCache
         public int? Hashcode { get; private set; }
 
         /// <summary>
+        /// Requesting ETag, if provided
+        /// </summary>
+        public StringValues ETagHeader { get; }
+
+        /// <summary>
         /// Create a new cache id representing an object
         /// </summary>
         /// <param name="category">Category of the object</param>
         /// <param name="hashcode">Hash of object to lookup</param>
-        public CacheId(string category, int hashcode)
+        /// <param name="etagHeader">Requested etag header</param>
+        public CacheId(string category, int hashcode, StringValues etagHeader = default)
         {
-            Category = category;
-            Hashcode = hashcode;
+            Category   = category;
+            Hashcode   = hashcode;
+            ETagHeader = etagHeader;
         }
         
         /// <summary>
@@ -31,9 +40,11 @@ namespace Wivuu.GlobalCache
         /// </summary>
         /// <param name="category">Category of the object</param>
         /// <param name="hashcode">Hash of object to lookup</param>
-        public CacheId(string category, object key)
+        /// <param name="etagHeader">Requested etag header</param>
+        public CacheId(string category, object key, StringValues etagHeader = default)
         {
-            Category = category;
+            Category   = category;
+            ETagHeader = etagHeader;
 
             // Calculate hashcode from input object
             Hashcode = key switch
