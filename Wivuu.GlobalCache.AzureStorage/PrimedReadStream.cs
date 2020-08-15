@@ -7,7 +7,7 @@ using Azure;
 
 namespace Wivuu.GlobalCache.AzureStorage
 {
-    internal class PrimedReadStream : Stream
+    internal class PrimedReadStream : Stream, IHasEtag
     {
         private readonly Stream BaseStream;
         private readonly byte[] InitialBuffer;
@@ -19,6 +19,8 @@ namespace Wivuu.GlobalCache.AzureStorage
             BaseStream    = baseStream;
             InitialBuffer = ArrayPool<byte>.Shared.Rent(InitialReadSize);
         }
+
+        public string? ETag { get; set; }
 
         public override bool CanRead => BaseStream.CanRead;
         public override bool CanSeek => false;

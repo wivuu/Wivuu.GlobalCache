@@ -131,14 +131,32 @@ namespace Wivuu.GlobalCache.Web
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            var id          = new CacheId(Category, CalculateHashCode(context));
             var httpContext = context.HttpContext;
             var settings    = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
+            var ifNoneMatch = httpContext.Request.Headers["If-None-Match"];
             var storage     = settings.Value.StorageProvider;
+            var id          = new CacheId(Category, CalculateHashCode(context), ifNoneMatch);
 
             // if reader works, set `context.Result` to a GlobalCacheObjectResult
             if (await storage!.TryOpenRead(id, httpContext.RequestAborted) is Stream stream)
-                context.Result = new ObjectResult(stream);
+            {
+                // Output etag
+                if (stream is IHasEtag etagContainer &&
+                    etagContainer.ETag is string etag)
+                {
+                    httpContext.Response.Headers["ETag"] = etag;
+
+                    // If requested etag is the same as the stream etag, return not modified
+                    if (ifNoneMatch == etag)
+                    {
+                        httpContext.Response.StatusCode = 304;
+                        context.Result = new EmptyResult();
+                        return;
+                    }
+                }
+
+                context.Result = new OkObjectResult(stream);
+            }
             else
             {
                 // Execute next and continue as normal
@@ -175,8 +193,16 @@ namespace Wivuu.GlobalCache.Web
 
                         await next();
                     }
-                    
-                    await storageStream;
+
+                    if (httpContext.Response.SupportsTrailers() &&
+                        storageStream.Completion is Task<string> etagTask)
+                    {
+                        // Add etag to trailer
+                        if (await etagTask is string etag)
+                            httpContext.Response.AppendTrailer("ETag", etag);
+                    }
+                    else
+                        await storageStream;
                 }
                 else
                     await next();

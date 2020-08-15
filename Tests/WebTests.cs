@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
+using Azure;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
@@ -28,20 +30,44 @@ namespace Tests
 
             using var client = Factory.CreateClient();
 
-            for (var tries = 0; tries < 2; ++tries)
+            for (var tries = 0; tries < 3; ++tries)
             {
-                var resp = await client.GetStringAsync("?days=10");
-                var data = JsonConvert.DeserializeAnonymousType(resp, new [] {
-                    new {
-                        Date         = default(DateTimeOffset),
-                        TemperatureC = default(decimal)
-                    }
-                });
+                var resp = await client.GetAsync("?days=10");
 
-                Assert.NotNull(data);
-                Assert.Equal(10, data.Length);
-                Assert.NotEqual(default, data[0].Date);
-                Assert.NotEqual(default, data[0].TemperatureC);
+                if (client.DefaultRequestHeaders.TryGetValues("If-None-Match", out _))
+                {
+                    // Expect the response to be empty and not modified
+                    Assert.Equal(304, (int)resp.StatusCode);
+                }
+                else
+                {
+                    var respBody = await resp.Content.ReadAsStringAsync();
+
+                    var data = JsonConvert.DeserializeAnonymousType(respBody, new [] {
+                        new {
+                            Date         = default(DateTimeOffset),
+                            TemperatureC = default(decimal)
+                        }
+                    });
+
+                    Assert.NotNull(data);
+                    Assert.Equal(10, data.Length);
+                    Assert.NotEqual(default, data[0].Date);
+                    Assert.NotEqual(default, data[0].TemperatureC);
+
+                    // Expect the response to be cached and return an etag
+                }
+
+                if (resp.Headers.TryGetValues("ETag", out var etags))
+                {
+                    client.DefaultRequestHeaders.Remove("If-None-Match");
+                    client.DefaultRequestHeaders.Add("If-None-Match", etags);
+                }
+                else if (resp.TrailingHeaders.TryGetValues("ETag", out var trail))
+                {
+                    client.DefaultRequestHeaders.Remove("If-None-Match");
+                    client.DefaultRequestHeaders.Add("If-None-Match", trail);
+                }
             }
         }
     }

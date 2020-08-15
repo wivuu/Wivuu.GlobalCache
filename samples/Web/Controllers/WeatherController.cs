@@ -12,7 +12,7 @@ namespace Web
     public class WeatherController : ControllerBase
     {
         [HttpGet]
-        [GlobalCache("weather/byday", VaryByParam="days", DurationSecs=60, OffsetDurationSecs = -10)]
+        [GlobalCache("weather/byday", VaryByParam="days")]//, DurationSecs=60, OffsetDurationSecs = -10)]
         public async Task<IList<WeatherItem>> GetCachedAttrAsync(
             [FromServices] ILogger<WeatherController> logger,
             [FromQuery] int days = 100)

@@ -141,15 +141,38 @@ namespace Wivuu.GlobalCache.AzureStorage
             var path   = IdToString(id);
             var client = ContainerClient.GetBlobClient(path);
             var pipe   = new Pipe();
+            ETag? etag = default;
 
             // Read from blob storage
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await client
-                        .DownloadToAsync(pipe.Writer.AsStream(leaveOpen: true), cancellationToken)
-                        .ConfigureAwait(false);
+                    var conditions = id.ETagHeader.Count > 0 
+                        ? new BlobRequestConditions { IfNoneMatch = new ETag(id.ETagHeader) }
+                        : default;
+
+                    var pendingResp = await client.DownloadAsync(
+                        conditions: conditions, 
+                        cancellationToken: cancellationToken
+                    );
+                    
+                    if (pendingResp is Response<BlobDownloadInfo> response)
+                    {
+                        if (response.GetRawResponse().Status == 304)
+                            etag = conditions?.IfNoneMatch;
+                        else
+                        {
+                            using (response.Value)
+                            {
+                                etag = response.Value.Details.ETag;
+
+                                await response.Value.Content
+                                    .CopyToAsync(pipe.Writer.AsStream(leaveOpen: true))
+                                    .ConfigureAwait(false);
+                            }
+                        }
+                    }
 
                     pipe.Writer.Complete();
                 }
@@ -163,8 +186,11 @@ namespace Wivuu.GlobalCache.AzureStorage
             var primed = new PrimedReadStream(pipe.Reader.AsStream(leaveOpen: false));
 
             if (await primed.TryPrimeAsync())
-                return primed;
+            {
+                primed.ETag = etag?.ToString();
 
+                return primed;
+            }
             else
                 primed.Dispose();
 
@@ -176,7 +202,7 @@ namespace Wivuu.GlobalCache.AzureStorage
             var path   = IdToString(id);
             var client = ContainerClient.GetBlobClient(path);
             var pipe   = new Pipe();
-            
+
             if (await EnterWrite(path) is IAsyncDisposable lease)
             {
                 // Write to blob storage
@@ -184,11 +210,13 @@ namespace Wivuu.GlobalCache.AzureStorage
                 {
                     try
                     {
-                        await client
+                        var response = await client
                             .UploadAsync(pipe.Reader.AsStream(true),
                                 conditions: new BlobRequestConditions { },
                                 cancellationToken: cancellationToken)
                             .ConfigureAwait(false);
+
+                        return response.Value.ETag.ToString();
                     }
                     catch (Exception e)
                     {
@@ -203,8 +231,8 @@ namespace Wivuu.GlobalCache.AzureStorage
                 });
 
                 return new StreamWithCompletion(
-                    pipe.Writer.AsStream(leaveOpen: false), 
-                    task); 
+                    pipe.Writer.AsStream(leaveOpen: false),
+                    task);
             }
 
             return null;
