@@ -25,6 +25,11 @@ namespace Wivuu.GlobalCache.Web
         public string Category { get; }
 
         /// <summary>
+        /// Cache control: none, private or public (defaults to public)
+        /// </summary>
+        public CacheControlLevel CacheControlLevel { get; set; } = CacheControlLevel.Public;
+
+        /// <summary>
         /// Vary by request parameters, separated by semicolon. Use '*' for all request parameters.
         /// </summary>
         public string? VaryByParam { get; set; }
@@ -137,15 +142,21 @@ namespace Wivuu.GlobalCache.Web
             var storage     = settings.Value.StorageProvider;
             var id          = new CacheId(Category, CalculateHashCode(context), ifNoneMatch);
 
-            httpContext.Response.Headers["Cache-Control"] = DurationSecs > 0
-                ? $"private, max-age={DurationSecs}"
-                : $"private";
+            if (CacheControlLevel != CacheControlLevel.None)
+            {
+                var level = CacheControlLevel == CacheControlLevel.Private ? "private" : "public";
+
+                httpContext.Response.Headers["Cache-Control"] = DurationSecs > 0
+                    ? $"{level}, max-age={DurationSecs}"
+                    : level;
+            }
                 
             // if reader works, set `context.Result` to a GlobalCacheObjectResult
             if (await storage!.TryOpenRead(id, httpContext.RequestAborted) is Stream stream)
             {
                 // Output etag
-                if (stream is IHasEtag etagContainer &&
+                if (CacheControlLevel != CacheControlLevel.None &&
+                    stream is IHasEtag etagContainer &&
                     etagContainer.ETag is string etag)
                 {
                     httpContext.Response.Headers["ETag"] = etag;
@@ -183,7 +194,9 @@ namespace Wivuu.GlobalCache.Web
                 // Open exclusive write
                 if (await storage!.TryOpenWrite(id, httpContext.RequestAborted) is StreamWithCompletion storageStream)
                 {
-                    var hasTrailers = httpContext.Response.SupportsTrailers();
+                    var hasTrailers = 
+                        CacheControlLevel != CacheControlLevel.None &&
+                        httpContext.Response.SupportsTrailers();
 
                     if (hasTrailers)
                         httpContext.Response.DeclareTrailer("ETag");
@@ -208,6 +221,8 @@ namespace Wivuu.GlobalCache.Web
                         // Add etag to trailer
                         if (await etagTask is string etag)
                             httpContext.Response.AppendTrailer("ETag", etag);
+                        else
+                            httpContext.Response.AppendTrailer("ETag", "\"\"");
                     }
                     else
                         await storageStream;
