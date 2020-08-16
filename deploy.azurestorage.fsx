@@ -68,4 +68,7 @@ services.AddWivuuGlobalCache(options =>
 
     options.StorageProvider = new Wivuu.GlobalCache.AzureStorage.BlobStorageProvider(container);
 });
+
 """ (outputs.["storage_key"])
+
+printfn "Your storage key: %s" (outputs.["storage_key"])
