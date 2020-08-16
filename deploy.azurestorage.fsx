@@ -61,28 +61,29 @@ let deployment = arm {
     output "storage_key" storageAcct.Key
 }
 
-// Deploy to Azure
+let format: Printf.TextWriterFormat<_> = """
+// Add this to your Startup.cs
+services.AddWivuuGlobalCache(options =>
+{
+    // TODO: Store this securely in your configuration or key vault
+    var connString = "%s";
+    var container  = new Azure.Storage.Blobs.BlobContainerClient(connString, "globalcache");
+    
+    // Create a new container to store your cached items
+    container.CreateIfNotExists();
+
+    options.StorageProvider = new Wivuu.GlobalCache.AzureStorage.BlobStorageProvider(container);
+});
+"""
+
 match outFile with
 | Some path ->
+    // Save to file
     let path = path |> System.IO.Path.GetFileNameWithoutExtension
     deployment |> Writer.quickWrite path
+    printfn format "DefaultEndpointsProtocol=https;your-storage-key-here!"
 | _ ->
+    // Deploy to Azure
     let outputs = deployment |> Deploy.execute rg Deploy.NoParameters
-
-    printfn """
-    // Add this to your Startup.cs
-    services.AddWivuuGlobalCache(options =>
-    {
-        // TODO: Store this securely in your configuration or key vault
-        var connString = "%s";
-        var container  = new Azure.Storage.Blobs.BlobContainerClient(connString, "globalcache");
-        
-        // Create a new container to store your cached items
-        container.CreateIfNotExists();
-
-        options.StorageProvider = new Wivuu.GlobalCache.AzureStorage.BlobStorageProvider(container);
-    });
-
-    """ (outputs.["storage_key"])
-
+    printfn format (outputs.["storage_key"])
     printfn "Your storage key: %s" (outputs.["storage_key"])
