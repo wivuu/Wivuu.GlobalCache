@@ -9,10 +9,10 @@ open Farmer
 open Farmer.Builders
 
 type Args =
-    | Storage_Name of path:string
-    | Location of location:string
+    | Storage_Name   of path:string
+    | Location       of location:string
     | Resource_Group of name:string
-    | Out_File of path:string
+    | Out_File       of path:string
     | Premium
 
     interface IArgParserTemplate with
@@ -24,7 +24,7 @@ type Args =
             | Out_File _       -> "Output to a file rather than deploying (default: None)"
             | Premium          -> "(FUTURE) Create a premium blockblob storage account with lower latency (default: off)"
 
-let parser = ArgumentParser.Create<Args>(programName     = "deploy.azurestorage.fsx")
+let parser = ArgumentParser.Create<Args>(programName = "deploy.azurestorage.fsx")
 let args   = parser.ParseCommandLine(fsi.CommandLineArgs.[1..], raiseOnUsage=false)
 
 if args.IsUsageRequested then
