@@ -37,16 +37,11 @@ namespace Web
         }
 
         [HttpGet("clear")]
-        public async Task<IActionResult> Clear(
+        [GlobalCacheClear("weather/byday")]
+        public IActionResult Clear(
             [FromServices] ILogger<WeatherController> logger,
-            [FromServices] IGlobalCache cache)
-        {
-            logger.LogWarning("Clearing cache...");
-
-            await cache.InvalidateAsync(CacheId.ForCategory("weather"));
-
-            return Ok("Cleared cache");
-        }
+            [FromServices] IGlobalCache cache) =>
+            Ok("Cleared cache");
     }
 
     public class WeatherItem
