@@ -34,9 +34,9 @@ namespace Wivuu.GlobalCache.Web
             await next();
 
             // If response was successful & we have a configured storage provider
-            if (httpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id &&
-                httpContext.Response.StatusCode >= 200 && 
+            if (httpContext.Response.StatusCode >= 200 && 
                 httpContext.Response.StatusCode < 300 &&
+                httpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id &&
                 httpContext.RequestServices.GetService<IStorageProvider>() is var storage)
             {
                 // Remove based on the id
