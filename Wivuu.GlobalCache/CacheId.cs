@@ -78,29 +78,33 @@ namespace Wivuu.GlobalCache
             : $"{Category}";
 
         /// <summary>
-        /// Get stable hash for input string
+        /// Get stable hash for input value
         /// </summary>
-        public static int GetStringHashCode(string? str)
+        public static int GetStringHashCode(object? input)
         {
-            if (str is null)
+            if (input is null)
                 return 0;
-                
-            unchecked
+            else if (input is string str)
             {
-                var hash1 = 5381;
-                var hash2 = hash1;
-
-                for (var i = 0; i < str.Length && str[i] != '\0'; i += 2)
+                unchecked
                 {
-                    hash1 = ((hash1 << 5) + hash1) ^ str[i];
-                    if (i == str.Length - 1 || str[i + 1] == '\0')
-                        break;
+                    var hash1 = 5381;
+                    var hash2 = hash1;
 
-                    hash2 = ((hash2 << 5) + hash2) ^ str[i + 1];
+                    for (var i = 0; i < str.Length && str[i] != '\0'; i += 2)
+                    {
+                        hash1 = ((hash1 << 5) + hash1) ^ str[i];
+                        if (i == str.Length - 1 || str[i + 1] == '\0')
+                            break;
+
+                        hash2 = ((hash2 << 5) + hash2) ^ str[i + 1];
+                    }
+
+                    return hash1 + (hash2 * 1566083941);
                 }
-
-                return hash1 + (hash2 * 1566083941);
             }
+            else
+                return input.GetHashCode();
         }
     }
 }

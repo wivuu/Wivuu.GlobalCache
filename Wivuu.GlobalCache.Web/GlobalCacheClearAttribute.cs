@@ -12,16 +12,13 @@ namespace Wivuu.GlobalCache.Web
         /// GlobalCacheClear attribute
         /// </summary>
         /// <param name="category">The prefix category of the cached item</param>
-        public GlobalCacheClearAttribute(string category)
+        public GlobalCacheClearAttribute(string category) : base (category)
         {
-            Category = category;
         }
-
-        public string Category { get; }
 
         public Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            var id = new CacheId(Category, CalculateHashCode(context));
+            var id = new CacheId(CalculateCategory(context, Category), CalculateHashCode(context));
             context.HttpContext.Items.Add("GlobalCache:CacheId", id);
             
             return next();

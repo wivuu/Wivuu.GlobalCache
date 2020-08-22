@@ -1,13 +1,21 @@
 using System;
+using System.Text;
 using Microsoft.AspNetCore.Mvc.Filters;
+using static Wivuu.GlobalCache.CacheId;
 
 namespace Wivuu.GlobalCache.Web
 {
     public abstract class BaseCacheIdAttribute : Attribute
     {
-        internal BaseCacheIdAttribute()
+        internal BaseCacheIdAttribute(string category)
         {
+            this.Category = category;
         }
+
+        /// <summary>
+        /// The a root category of the cached items (including route parameter strings)
+        /// </summary>
+        public string Category { get; }
 
         /// <summary>
         /// Vary by request parameters, separated by semicolon. Use '*' for all request parameters.
@@ -38,6 +46,55 @@ namespace Wivuu.GlobalCache.Web
         /// </summary>
         public int OffsetDurationSecs { get; set; }
 
+        /// <summary>
+        /// Replace any parameterized route variables
+        /// </summary>
+        protected static string CalculateCategory(ActionExecutingContext context, string category)
+        {
+            // Check if category contains parameters
+            var i = category.IndexOf('{');
+        
+            if (i == -1)
+                return category;
+
+            Span<char> brackets = stackalloc [] { '{', '}' };
+            var args            = context.ActionArguments;
+            var categoryPieces  = category.AsSpan();
+            var sb              = new StringBuilder();
+
+            // Iterate through & replace parameters with values
+            while (i > -1)
+            {
+                var segment = categoryPieces[0..i];
+
+                if (categoryPieces[i] == '{')
+                {
+                    // Add previous segment
+                    sb.Append(segment);
+                }
+                else if (categoryPieces[i] == '}' && 
+                    args.TryGetValue(segment.ToString(), out var value))
+                {
+                    // Append value
+                    sb.Append(value);
+                }
+
+                // Remove previous segment
+                categoryPieces = categoryPieces[++i..];
+
+                // Find next open/close bracket
+                i = categoryPieces.IndexOfAny(brackets);
+            }
+
+            if (categoryPieces.Length > 0)
+                sb.Append(categoryPieces);
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Calculate a hashcode
+        /// </summary>
         protected virtual int CalculateHashCode(ActionExecutingContext context)
         {
             unchecked
@@ -65,10 +122,10 @@ namespace Wivuu.GlobalCache.Web
                                 continue;
 
                             if (context.ActionArguments.TryGetValue(p.Name, out var argValue))
-                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ (argValue?.GetHashCode() ?? 0);
+                                result = result ^ GetStringHashCode(p.Name) ^ GetStringHashCode(argValue);
                                 
                             else if (context.RouteData.Values.TryGetValue(p.Name, out var routeValue))
-                                result = result ^ CacheId.GetStringHashCode(p.Name) ^ (routeValue?.GetHashCode() ?? 0);
+                                result = result ^ GetStringHashCode(p.Name) ^ GetStringHashCode(routeValue);
                         }
                     }
                     else
@@ -78,10 +135,10 @@ namespace Wivuu.GlobalCache.Web
                         foreach (var arg in parameters)
                         {
                             if (context.ActionArguments.TryGetValue(arg, out var argValue))
-                                result = result ^ CacheId.GetStringHashCode(arg) ^ (argValue?.GetHashCode() ?? 0);
+                                result = result ^ GetStringHashCode(arg) ^ GetStringHashCode(argValue);
 
                             else if (context.RouteData.Values.TryGetValue(arg, out var routeValue))
-                                result = result ^ CacheId.GetStringHashCode(arg) ^ (routeValue?.GetHashCode() ?? 0);
+                                result = result ^ GetStringHashCode(arg) ^ GetStringHashCode(routeValue);
                         }
                     }
                 }
@@ -95,7 +152,7 @@ namespace Wivuu.GlobalCache.Web
                     foreach (var arg in parameters)
                     {
                         if (reqHeaders.TryGetValue(arg, out var value))
-                            result = result ^ CacheId.GetStringHashCode(arg) ^ CacheId.GetStringHashCode(value);
+                            result = result ^ GetStringHashCode(arg) ^ GetStringHashCode(value);
                     }
                 }
 
@@ -103,11 +160,10 @@ namespace Wivuu.GlobalCache.Web
                 if (VaryByCustom != null && 
                     typeof(IGlobalCacheExpiration).IsAssignableFrom(VaryByCustom) && 
                     Activator.CreateInstance(VaryByCustom) is IGlobalCacheExpiration expr)
-                    result = result ^ expr.GetId(context).GetHashCode();
+                    result = result ^ GetStringHashCode(expr.GetId(context));
 
                 return result;
             }
         }
-
     }
 }

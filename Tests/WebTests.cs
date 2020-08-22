@@ -32,7 +32,7 @@ namespace Tests
 
             for (var tries = 0; tries < 3; ++tries)
             {
-                var resp = await client.GetAsync("?days=10");
+                var resp = await client.GetAsync("weather/us/?days=10");
 
                 if (client.DefaultRequestHeaders.TryGetValues("If-None-Match", out _))
                 {
