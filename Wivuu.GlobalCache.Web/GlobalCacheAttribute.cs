@@ -17,12 +17,9 @@ namespace Wivuu.GlobalCache.Web
         /// GlobalCache attribute
         /// </summary>
         /// <param name="category">The prefix category of the cached item</param>
-        public GlobalCacheAttribute(string category)
+        public GlobalCacheAttribute(string category) : base(category)
         {
-            Category = category;
         }
-
-        public string Category { get; }
 
         /// <summary>
         /// Cache control: none, private or public (defaults to public)
@@ -40,7 +37,7 @@ namespace Wivuu.GlobalCache.Web
             var settings    = httpContext.RequestServices.GetService<IOptions<GlobalCacheSettings>>();
             var ifNoneMatch = httpContext.Request.Headers["If-None-Match"];
             var storage     = settings.Value.StorageProvider;
-            var id          = new CacheId(Category, CalculateHashCode(context), ifNoneMatch);
+            var id          = new CacheId(CalculateCategory(context, Category), CalculateHashCode(context), ifNoneMatch);
 
             if (CacheControlLevel != CacheControlLevel.None)
             {

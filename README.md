@@ -121,7 +121,8 @@ Once the package is installed, and the service is configured in your Startup.cs,
 
 ```C#
 [HttpGet]
-[GlobalCache("weather/byday", VaryByParam="days")]
+[GlobalCache("weather/byday/{days}")] // Replace variable in path
+// [GlobalCache("weather/byday", VaryByParam="days")] // Or generate unique hash based on days
 public async Task<IList<WeatherItem>> GetAsync([FromQuery]int days = 100)
 {
     var start  = DateTime.Now.AddDays(-days);
