@@ -37,11 +37,12 @@ namespace Web
             return items;
         }
 
-        [HttpGet("clear")]
-        [GlobalCacheClear("weather/byday")]
+        [HttpGet("clear/{country}")]
+        [GlobalCacheClear("weather/{country}")]
         public IActionResult Clear(
             [FromServices] ILogger<WeatherController> logger,
-            [FromServices] IGlobalCache cache) =>
+            [FromServices] IGlobalCache cache,
+            [FromRoute] string country) =>
             Ok("Cleared cache");
     }
 
