@@ -8,13 +8,14 @@ using Wivuu.GlobalCache.Web;
 
 namespace Web
 {
-    [Route("")]
+    [Route("weather")]
     public class WeatherController : ControllerBase
     {
-        [HttpGet]
-        [GlobalCache("weather/byday", VaryByParam="days", DurationSecs=60, OffsetDurationSecs = -10)]
+        [HttpGet("{country}")]
+        [GlobalCache("weather/{country}/byday/{days}", DurationSecs=300, OffsetDurationSecs = -10)]
         public async Task<IList<WeatherItem>> GetCachedAttrAsync(
             [FromServices] ILogger<WeatherController> logger,
+            [FromRoute] string country,
             [FromQuery] int days = 100)
         {
             var items  = new List<WeatherItem>(capacity: days);
@@ -37,16 +38,11 @@ namespace Web
         }
 
         [HttpGet("clear")]
-        public async Task<IActionResult> Clear(
+        [GlobalCacheClear("weather/byday")]
+        public IActionResult Clear(
             [FromServices] ILogger<WeatherController> logger,
-            [FromServices] IGlobalCache cache)
-        {
-            logger.LogWarning("Clearing cache...");
-
-            await cache.InvalidateAsync(CacheId.ForCategory("weather"));
-
-            return Ok("Cleared cache");
-        }
+            [FromServices] IGlobalCache cache) =>
+            Ok("Cleared cache");
     }
 
     public class WeatherItem
