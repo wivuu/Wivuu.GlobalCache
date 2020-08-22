@@ -12,7 +12,7 @@ namespace Web
     public class WeatherController : ControllerBase
     {
         [HttpGet("{country}")]
-        [GlobalCache("weather/{country}/byday/{days}", DurationSecs=300, OffsetDurationSecs = -10)]
+        [GlobalCache("weather/byday/{country}/{days=10}", DurationSecs=300, OffsetDurationSecs = -10)]
         public async Task<IList<WeatherItem>> GetCachedAttrAsync(
             [FromServices] ILogger<WeatherController> logger,
             [FromRoute] string country,

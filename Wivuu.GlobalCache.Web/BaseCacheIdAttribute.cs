@@ -57,7 +57,7 @@ namespace Wivuu.GlobalCache.Web
             if (i == -1)
                 return category;
 
-            Span<char> brackets = stackalloc [] { '{', '}' };
+            Span<char> brackets = stackalloc [] { '{', '}', '=' };
             var args            = context.ActionArguments;
             var categoryPieces  = category.AsSpan();
             var sb              = new StringBuilder();
@@ -66,17 +66,26 @@ namespace Wivuu.GlobalCache.Web
             while (i > -1)
             {
                 var segment = categoryPieces[0..i];
+                var start   = categoryPieces[i];
 
-                if (categoryPieces[i] == '{')
+                if (start == '{')
                 {
                     // Add previous segment
                     sb.Append(segment);
                 }
-                else if (categoryPieces[i] == '}' && 
-                    args.TryGetValue(segment.ToString(), out var value))
+                else if (start == '}')
                 {
-                    // Append value
-                    sb.Append(value);
+                    if (args.TryGetValue(segment.ToString(), out var value))
+                        // Append value
+                        sb.Append(value);
+                }
+                // Check if there is a default value (=) designation after the name
+                else if (start == '=' &&
+                    categoryPieces.IndexOf('}') is int endOfDefault && endOfDefault > -1)
+                {
+                    sb.Append(categoryPieces[(i + 1)..endOfDefault]);
+
+                    i = endOfDefault;
                 }
 
                 // Remove previous segment

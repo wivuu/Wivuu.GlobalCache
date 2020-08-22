@@ -1,7 +1,5 @@
 using System;
-using System.Linq;
 using System.Threading.Tasks;
-using Azure;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
@@ -24,6 +22,8 @@ namespace Tests
         [Fact]
         public async Task TryGetCachedResponse()
         {
+            const int count = 15;
+
             // Clear cache
             var cache = Factory.Services.GetRequiredService<Wivuu.GlobalCache.IGlobalCache>();
             await cache.InvalidateAsync(CacheId.ForCategory("weather"));
@@ -32,7 +32,7 @@ namespace Tests
 
             for (var tries = 0; tries < 3; ++tries)
             {
-                var resp = await client.GetAsync("weather/us/?days=10");
+                var resp = await client.GetAsync($"weather/us?days={count}");
 
                 if (client.DefaultRequestHeaders.TryGetValues("If-None-Match", out _))
                 {
@@ -51,7 +51,7 @@ namespace Tests
                     });
 
                     Assert.NotNull(data);
-                    Assert.Equal(10, data.Length);
+                    Assert.Equal(count, data.Length);
                     Assert.NotEqual(default, data[0].Date);
                     Assert.NotEqual(default, data[0].TemperatureC);
 
