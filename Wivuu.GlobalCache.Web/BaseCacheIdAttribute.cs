@@ -60,7 +60,7 @@ namespace Wivuu.GlobalCache.Web
             Span<char> brackets = stackalloc [] { '{', '}', '=' };
             var args            = context.ActionArguments;
             var categoryPieces  = category.AsSpan();
-            var sb              = new StringBuilder();
+            var sb              = new StringBuilder(categoryPieces.Length);
 
             // Iterate through & replace parameters with values
             while (i > -1)
