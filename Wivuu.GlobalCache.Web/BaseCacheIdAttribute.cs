@@ -83,7 +83,11 @@ namespace Wivuu.GlobalCache.Web
                 else if (start == '=' &&
                     categoryPieces.IndexOf('}') is int endOfDefault && endOfDefault > -1)
                 {
-                    sb.Append(categoryPieces[(i + 1)..endOfDefault]);
+                    if (args.TryGetValue(segment.ToString(), out var value))
+                        // Append value
+                        sb.Append(value);
+                    else
+                        sb.Append(categoryPieces[(i + 1)..endOfDefault]);
 
                     i = endOfDefault;
                 }

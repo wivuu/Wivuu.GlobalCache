@@ -1,13 +1,13 @@
 <Project>
 
     <PropertyGroup>
-        <VersionPrefix>1.0.6</VersionPrefix>
+        <VersionPrefix>1.0.7</VersionPrefix>
         <Authors>Erik O'Leary</Authors>
         <Company>Wivuu</Company>
         <Product>Wivuu GlobalCache</Product>
         <Description>The GlobalCache library provides a cheap and effortless way to host a distributed caching mechanism.</Description>
         <ReleaseNotes>
-        - GlobalCache attribute supports defaults if route values are not present (i.e. "my-path/{my-var=10}")
+        - Fixed issue with GlobalCacheAttribute always using 'Default' if specified
         </ReleaseNotes>
         <PackageTags>caching;azure</PackageTags>
         <PackageProjectUrl>https://github.com/wivuu/Wivuu.GlobalCache</PackageProjectUrl>
