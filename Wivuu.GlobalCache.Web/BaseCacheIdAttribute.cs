@@ -66,21 +66,21 @@ namespace Wivuu.GlobalCache.Web
             while (i > -1)
             {
                 var segment = categoryPieces[0..i];
-                var start   = categoryPieces[i];
+                var c       = categoryPieces[i];
 
-                if (start == '{')
+                if (c == '{')
                 {
                     // Add previous segment
                     sb.Append(segment);
                 }
-                else if (start == '}')
+                else if (c == '}')
                 {
                     if (args.TryGetValue(segment.ToString(), out var value))
                         // Append value
                         sb.Append(value);
                 }
                 // Check if there is a default value (=) designation after the name
-                else if (start == '=' &&
+                else if (c == '=' &&
                     categoryPieces.IndexOf('}') is int endOfDefault && endOfDefault > -1)
                 {
                     if (args.TryGetValue(segment.ToString(), out var value))
@@ -93,7 +93,7 @@ namespace Wivuu.GlobalCache.Web
                 }
 
                 // Remove previous segment
-                categoryPieces = categoryPieces[++i..];
+                categoryPieces = categoryPieces[(i + 1)..];
 
                 // Find next open/close bracket
                 i = categoryPieces.IndexOfAny(brackets);
