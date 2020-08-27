@@ -99,10 +99,7 @@ namespace Wivuu.GlobalCache.Web
                 i = categoryPieces.IndexOfAny(brackets);
             }
 
-            if (categoryPieces.Length > 0)
-                sb.Append(categoryPieces);
-
-            return sb.ToString();
+            return sb.Append(categoryPieces).ToString();
         }
 
         /// <summary>
