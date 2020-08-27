@@ -12,6 +12,10 @@ namespace Wivuu.GlobalCache.Web
             this.Category = category;
         }
 
+        bool _allParams;
+        string[]? _varyByParam;
+        string[]? _varyByHeader;
+
         /// <summary>
         /// The a root category of the cached items (including route parameter strings)
         /// </summary>
@@ -20,12 +24,26 @@ namespace Wivuu.GlobalCache.Web
         /// <summary>
         /// Vary by request parameters, separated by semicolon. Use '*' for all request parameters.
         /// </summary>
-        public string? VaryByParam { get; set; }
+        public string? VaryByParam 
+        { 
+            get => throw new NotSupportedException();
+            set
+            {
+                if (value == "*")
+                    _allParams = true;
+                else
+                    _varyByParam = value?.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            }
+        }
 
         /// <summary>
         /// Vary by request header, separated by semicolon
         /// </summary>
-        public string? VaryByHeader { get; set; }
+        public string? VaryByHeader
+        {
+            get => throw new NotSupportedException();
+            set => _varyByHeader = value?.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        }
 
         /// <summary>
         /// Vary by custom logic, should be a type inheriting from `IGlobalCacheExpiration`
@@ -122,45 +140,46 @@ namespace Wivuu.GlobalCache.Web
                 }
 
                 // Include params
-                if (VaryByParam is string varyParam)
+                if (_allParams)
                 {
-                    if (varyParam == "*")
+                    for (var i = 0; i < context.ActionDescriptor.Parameters.Count; ++i)
                     {
-                        foreach (var p in context.ActionDescriptor.Parameters)
-                        {
-                            if (!p.BindingInfo.BindingSource.IsFromRequest)
-                                continue;
+                        var arg = context.ActionDescriptor.Parameters[i];
 
-                            if (context.ActionArguments.TryGetValue(p.Name, out var argValue))
-                                result = result ^ GetStringHashCode(p.Name) ^ GetStringHashCode(argValue);
-                                
-                            else if (context.RouteData.Values.TryGetValue(p.Name, out var routeValue))
-                                result = result ^ GetStringHashCode(p.Name) ^ GetStringHashCode(routeValue);
-                        }
+                        if (!arg.BindingInfo.BindingSource.IsFromRequest)
+                            continue;
+
+                        if (context.ActionArguments.TryGetValue(arg.Name, out var argValue))
+                            result = result ^ GetStringHashCode(arg.Name) ^ GetStringHashCode(argValue);
+                            
+                        else if (context.RouteData.Values.TryGetValue(arg.Name, out var routeValue))
+                            result = result ^ GetStringHashCode(arg.Name) ^ GetStringHashCode(routeValue);
                     }
-                    else
+                }
+                else if (_varyByParam is string[] varyParam)
+                {
+
+                    for (var i = 0; i < _varyByParam.Length; ++i)
                     {
-                        var parameters = VaryByParam.Split(';', StringSplitOptions.RemoveEmptyEntries);
+                        var arg = _varyByParam[i];
 
-                        foreach (var arg in parameters)
-                        {
-                            if (context.ActionArguments.TryGetValue(arg, out var argValue))
-                                result = result ^ GetStringHashCode(arg) ^ GetStringHashCode(argValue);
+                        if (context.ActionArguments.TryGetValue(arg, out var argValue))
+                            result = result ^ GetStringHashCode(arg) ^ GetStringHashCode(argValue);
 
-                            else if (context.RouteData.Values.TryGetValue(arg, out var routeValue))
-                                result = result ^ GetStringHashCode(arg) ^ GetStringHashCode(routeValue);
-                        }
+                        else if (context.RouteData.Values.TryGetValue(arg, out var routeValue))
+                            result = result ^ GetStringHashCode(arg) ^ GetStringHashCode(routeValue);
                     }
                 }
 
                 // Include request headers
-                if (VaryByHeader is string varyHeader)
+                if (_varyByHeader is string[] varyHeader)
                 {
                     var reqHeaders = context.HttpContext.Request.Headers;
-                    var parameters = varyHeader.Split(';', StringSplitOptions.RemoveEmptyEntries);
 
-                    foreach (var arg in parameters)
+                    for (var i = 0; i < varyHeader.Length; ++i)
                     {
+                        var arg = varyHeader[i];
+
                         if (reqHeaders.TryGetValue(arg, out var value))
                             result = result ^ GetStringHashCode(arg) ^ GetStringHashCode(value);
                     }
