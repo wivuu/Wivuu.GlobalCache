@@ -158,7 +158,6 @@ namespace Wivuu.GlobalCache.Web
                 }
                 else if (_varyByParam is string[] varyParam)
                 {
-
                     for (var i = 0; i < _varyByParam.Length; ++i)
                     {
                         var arg = _varyByParam[i];
