@@ -18,7 +18,11 @@ namespace Wivuu.GlobalCache.Web
 
         public Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            var id = new CacheId(CalculateCategory(context, Category), CalculateHashCode(context));
+            var hash = CalculateHashCode(context);
+            var id   = hash != 0
+                ? new CacheId(CalculateCategory(context, Category), hash)
+                : CacheId.ForCategory(CalculateCategory(context, Category));
+
             context.HttpContext.Items.Add("GlobalCache:CacheId", id);
             
             return next();
@@ -34,10 +38,10 @@ namespace Wivuu.GlobalCache.Web
             if (httpContext.Response.StatusCode >= 200 && 
                 httpContext.Response.StatusCode < 300 &&
                 httpContext.Items.TryGetValue("GlobalCache:CacheId", out var idObj) && idObj is CacheId id &&
-                httpContext.RequestServices.GetService<IStorageProvider>() is var storage)
+                httpContext.RequestServices.GetService<IGlobalCache>() is IGlobalCache cache)
             {
                 // Remove based on the id
-                await storage.RemoveAsync(id);
+                await cache.InvalidateAsync(id);
             }
         }
     }

@@ -70,5 +70,24 @@ namespace Tests
                 }
             }
         }
+
+        [Fact]
+        public async Task TryClearCache()
+        {
+            const int count = 15;
+            
+            // Clear cache
+            var cache = Factory.Services.GetRequiredService<Wivuu.GlobalCache.IGlobalCache>();
+            await cache.InvalidateAsync(CacheId.ForCategory("weather"));
+
+            using var client = Factory.CreateClient();
+
+            for (var tries = 0; tries < 3; ++tries)
+            {
+                var resp = await client.GetAsync($"weather/us?days={count}");
+                
+                await client.GetAsync($"weather/clear/us");
+            }
+        }
     }
 }
