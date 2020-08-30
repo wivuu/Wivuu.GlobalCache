@@ -39,6 +39,7 @@ namespace Web
 
         [HttpGet("clear/{country}")]
         [GlobalCacheClear("weather/byday/{country}")]
+        [GlobalCacheClear("weather/byday/all")]
         public IActionResult Clear(
             [FromServices] ILogger<WeatherController> logger,
             [FromServices] IGlobalCache cache,
