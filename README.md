@@ -1,5 +1,5 @@
 # Wivuu.GlobalCache
-[![CI](https://github.com/wivuu/Wivuu.GlobalCache/workflows/CI/badge.svg)](https://github.com/wivuu/Wivuu.GlobalCache/actions?query=workflow%3ACI)
+[![Nuget](https://github.com/wivuu/Wivuu.GlobalCache/workflows/Nuget/badge.svg)](https://github.com/wivuu/Wivuu.GlobalCache/actions?query=workflow%3ANuget)
 
 [![wivuu.globalcache](https://img.shields.io/nuget/v/wivuu.globalcache.svg?label=wivuu.globalcache)](https://www.nuget.org/packages/Wivuu.GlobalCache/)
 [![wivuu.globalcache.AzureStorage](https://img.shields.io/nuget/v/wivuu.globalcache.azurestorage.svg?label=wivuu.globalcache.azurestorage)](https://www.nuget.org/packages/Wivuu.GlobalCache.AzureStorage)
