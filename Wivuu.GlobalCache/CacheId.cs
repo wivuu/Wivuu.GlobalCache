@@ -15,7 +15,7 @@ namespace Wivuu.GlobalCache
         /// <summary>
         /// The hashcode of an individual item
         /// </summary>
-        public int? Hashcode { get; private set; }
+        public int? Hashcode { get; }
 
         /// <summary>
         /// Requesting ETag, if provided
