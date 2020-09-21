@@ -77,6 +77,7 @@ namespace Wivuu.GlobalCache.Web
 
             Span<char> brackets = stackalloc [] { '{', '}', '=' };
             var args            = context.ActionArguments;
+            var routes          = context.RouteData.Values;
             var categoryPieces  = category.AsSpan();
             var sb              = new StringBuilder(categoryPieces.Length);
 
@@ -93,17 +94,25 @@ namespace Wivuu.GlobalCache.Web
                 }
                 else if (c == '}')
                 {
-                    if (args.TryGetValue(segment.ToString(), out var value))
-                        // Append value
-                        sb.Append(value);
+                    var segname = segment.ToString();
+
+                    // Append value
+                    if (args.TryGetValue(segname, out var argValue))
+                        sb.Append(argValue);
+                    else if (routes.TryGetValue(segname, out var routeValue))
+                        sb.Append(routeValue);
                 }
                 // Check if there is a default value (=) designation after the name
                 else if (c == '=' &&
                     categoryPieces.IndexOf('}') is int endOfDefault && endOfDefault > -1)
                 {
-                    if (args.TryGetValue(segment.ToString(), out var value))
-                        // Append value
-                        sb.Append(value);
+                    var segname = segment.ToString();
+
+                    // Append value
+                    if (args.TryGetValue(segname, out var argValue))
+                        sb.Append(argValue);
+                    else if (routes.TryGetValue(segname, out var routeValue))
+                        sb.Append(routeValue);
                     else
                         sb.Append(categoryPieces[(i + 1)..endOfDefault]);
 
